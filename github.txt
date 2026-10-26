@@ -1,6 +1,6 @@
 ssh -T git@github-personal
 git add .
-git commit -m "add ac plan doc 1"
+git commit -m "add ac plan doc 2"
 git push
 
 git remote set-url origin git@github-personal:YoungLee1995/scientific-agent-skills.git
