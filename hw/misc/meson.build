@@ -181,3 +181,6 @@ system_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
 
 system_ss.add(when: 'CONFIG_AXIADO_CLK', if_true: files('axiado_clk.c'))
+
+# Internal experiment; no upstream ABI or hardware compatibility claim.
+system_ss.add(when: 'CONFIG_PCI', if_true: files('zc-pcie-sim.c'))

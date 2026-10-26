@@ -1,0 +1,135 @@
+CASE linux-simu
+/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005370910902005 {'qemu_exit': 0, 'guest_pass': True, 'guest_exit_zero': True, 'iommu_enabled': True}
+
+STAGE1_LINUX_BOOTED
+EP_BAR 0000:03:00.0 base=fe600000 size=65536
+IOMMU_GROUP ../../../../../../kernel/iommu_groups/4
+COMMAND seq=0 id=1 status=0 executions=1 bytes=33824 PASS
+COMMAND seq=1 id=2 status=0 executions=2 bytes=33824 PASS
+COMMAND seq=2 id=2 status=4 executions=2 bytes=32 PASS
+COMMAND seq=3 id=0 status=4 executions=2 bytes=32 PASS
+COMMAND seq=4 id=3 status=1 executions=2 bytes=32 PASS
+COMMAND seq=5 id=4 status=2 executions=2 bytes=32 PASS
+COMMAND seq=6 id=5 status=3 executions=2 bytes=32 PASS
+COMMAND seq=7 id=6 status=0 executions=3 bytes=33824 PASS
+COMMAND seq=8 id=7 status=0 executions=3 bytes=32 PASS
+STAGE1_PASS commands=9 tensor=3 rejected=5 busy_rejected=9
+GUEST_RESULT=0
+CASE topology8
+/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005375083116118 {'qemu_exit': 0, 'guest_pass': True, 'guest_exit_zero': True, 'iommu_enabled': True}
+
+STAGE1_LINUX_BOOTED
+EP_BAR 0000:03:00.0 base=fd800000 size=65536
+EP_BAR 0000:09:00.0 base=fcc00000 size=65536
+EP_BAR 0000:08:00.0 base=fce00000 size=65536
+EP_BAR 0000:0a:00.0 base=fca00000 size=65536
+EP_BAR 0000:07:00.0 base=fd000000 size=65536
+EP_BAR 0000:06:00.0 base=fd200000 size=65536
+EP_BAR 0000:05:00.0 base=fd400000 size=65536
+EP_BAR 0000:04:00.0 base=fd600000 size=65536
+IOMMU_GROUP ../../../../../../kernel/iommu_groups/5
+STAGE1_PASS topology8 endpoints=8
+GUEST_RESULT=0
+CASE disconnect
+/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005379255637578 {'qemu_exit': 0, 'guest_pass': True, 'guest_exit_zero': True, 'iommu_enabled': True}
+
+STAGE1_LINUX_BOOTED
+EP_BAR 0000:03:00.0 base=fe600000 size=65536
+IOMMU_GROUP ../../../../../../kernel/iommu_groups/4
+STAGE1_PASS fault=disconnect error=2
+GUEST_RESULT=0
+CASE wrong-id
+/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005383131479168 {'qemu_exit': 0, 'guest_pass': True, 'guest_exit_zero': True, 'iommu_enabled': True}
+
+STAGE1_LINUX_BOOTED
+EP_BAR 0000:03:00.0 base=fe600000 size=65536
+IOMMU_GROUP ../../../../../../kernel/iommu_groups/4
+STAGE1_PASS fault=wrong-id error=3
+GUEST_RESULT=0
+CASE timeout
+/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005387003199846 {'qemu_exit': 0, 'guest_pass': True, 'guest_exit_zero': True, 'iommu_enabled': True}
+
+STAGE1_LINUX_BOOTED
+EP_BAR 0000:03:00.0 base=fe600000 size=65536
+IOMMU_GROUP ../../../../../../kernel/iommu_groups/4
+STAGE1_PASS fault=timeout error=1
+GUEST_RESULT=0
+CASE reset-inflight
+/workspace/GIT/pcie_qemu/experiments/qemu_stage1/reset-1793005420809519239 RESET_PASS
+
+CASE intel-iommu
+# random seed: R02S75cb3dbb6dad28af17510e46475a5303
+1..2
+# Start of x86_64 tests
+# Start of q35 tests
+# Start of intel-iommu tests
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406882.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406882.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -M q35 -device intel-iommu  -accel qtest
+ok 1 /x86_64/q35/intel-iommu/8byte-access
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406882.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406882.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -M q35 -device intel-iommu,scalable-mode=on,fsts=on  -accel qtest
+ok 2 /x86_64/q35/intel-iommu/stage-1
+# End of intel-iommu tests
+# End of q35 tests
+# End of x86_64 tests
+
+CASE intel-iommu-invalidation
+# random seed: R02S2c61c2b58ce3ff97b93a091379526719
+1..12
+# Start of x86_64 tests
+# Start of iommu-testdev tests
+# Start of intel tests
+# Start of iotlb-inv tests
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=1
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 1 /x86_64/iommu-testdev/intel/iotlb-inv/global-legacy
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=1
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 2 /x86_64/iommu-testdev/intel/iotlb-inv/domain-legacy
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=1
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 3 /x86_64/iommu-testdev/intel/iotlb-inv/page-legacy
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=3
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 4 /x86_64/iommu-testdev/intel/iotlb-inv/global-scalable-slt
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=3
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 5 /x86_64/iommu-testdev/intel/iotlb-inv/domain-scalable-slt
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=3
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 6 /x86_64/iommu-testdev/intel/iotlb-inv/page-scalable-slt
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on,fsts=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=4
+# Page table setup: IOVA=0x10200567 PA=0x10100000 first-level
+ok 7 /x86_64/iommu-testdev/intel/iotlb-inv/global-scalable-flt
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on,fsts=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=4
+# Page table setup: IOVA=0x10200567 PA=0x10100000 first-level
+ok 8 /x86_64/iommu-testdev/intel/iotlb-inv/domain-scalable-flt
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on,fsts=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=4
+# Page table setup: IOVA=0x10200567 PA=0x10100000 first-level
+ok 9 /x86_64/iommu-testdev/intel/iotlb-inv/page-scalable-flt
+# Start of page-selective tests
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=1
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 10 /x86_64/iommu-testdev/intel/iotlb-inv/page-selective/legacy
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=3
+# Page table setup: IOVA=0x10200567 PA=0x10100000 second-level
+ok 11 /x86_64/iommu-testdev/intel/iotlb-inv/page-selective/scalable-slt
+# starting QEMU: exec /workspace/GIT/pcie_qemu/qemu/build/qemu-system-x86_64 -qtest unix:/tmp/qtest-2406898.sock -qtest-log /dev/null -chardev socket,path=/tmp/qtest-2406898.qmp,id=char0 -object monitor-qmp,id=qmp0,chardev=char0 -display none -audio none -run-with exit-with-parent=on -machine q35 -smp 1 -m 512 -net none -device intel-iommu,scalable-mode=on,fsts=on  -device iommu-testdev  -accel qtest
+# Build translation: IOVA=0x10200567 PA=0x10100000 mode=4
+# Page table setup: IOVA=0x10200567 PA=0x10100000 first-level
+ok 12 /x86_64/iommu-testdev/intel/iotlb-inv/page-selective/scalable-flt
+# End of page-selective tests
+# End of iotlb-inv tests
+# End of intel tests
+# End of iommu-testdev tests
+# End of x86_64 tests
+

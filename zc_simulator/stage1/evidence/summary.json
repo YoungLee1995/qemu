@@ -1,0 +1,112 @@
+{
+  "experimental_stage1_pass": true,
+  "cases": [
+    {
+      "name": "linux-simu",
+      "exit_code": 0,
+      "elapsed_seconds": 4.172,
+      "command": [
+        "/usr/bin/python3",
+        "/workspace/GIT/pcie_qemu/qemu/zc_simulator/stage1/run_linux.py"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu"
+    },
+    {
+      "name": "topology8",
+      "exit_code": 0,
+      "elapsed_seconds": 4.172,
+      "command": [
+        "/usr/bin/python3",
+        "/workspace/GIT/pcie_qemu/qemu/zc_simulator/stage1/run_linux.py",
+        "--topology8"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu"
+    },
+    {
+      "name": "disconnect",
+      "exit_code": 0,
+      "elapsed_seconds": 3.872,
+      "command": [
+        "/usr/bin/python3",
+        "/workspace/GIT/pcie_qemu/qemu/zc_simulator/stage1/run_linux.py",
+        "--fault",
+        "disconnect"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu"
+    },
+    {
+      "name": "wrong-id",
+      "exit_code": 0,
+      "elapsed_seconds": 3.872,
+      "command": [
+        "/usr/bin/python3",
+        "/workspace/GIT/pcie_qemu/qemu/zc_simulator/stage1/run_linux.py",
+        "--fault",
+        "wrong-id"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu"
+    },
+    {
+      "name": "timeout",
+      "exit_code": 0,
+      "elapsed_seconds": 33.827,
+      "command": [
+        "/usr/bin/python3",
+        "/workspace/GIT/pcie_qemu/qemu/zc_simulator/stage1/run_linux.py",
+        "--fault",
+        "timeout"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu"
+    },
+    {
+      "name": "reset-inflight",
+      "exit_code": 0,
+      "elapsed_seconds": 0.114,
+      "command": [
+        "/usr/bin/python3",
+        "/workspace/GIT/pcie_qemu/qemu/zc_simulator/stage1/reset_probe.py"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu"
+    },
+    {
+      "name": "intel-iommu",
+      "exit_code": 0,
+      "elapsed_seconds": 0.315,
+      "command": [
+        "./tests/qtest/intel-iommu-test"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu/qemu/build"
+    },
+    {
+      "name": "intel-iommu-invalidation",
+      "exit_code": 0,
+      "elapsed_seconds": 1.818,
+      "command": [
+        "./tests/qtest/iommu-intel-inv-test"
+      ],
+      "cwd": "/workspace/GIT/pcie_qemu/qemu/build"
+    }
+  ],
+  "qemu_base_commit": "9312ab185493eb5fb8faecccbcf85e9c6a8e4d54",
+  "suite_directory": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/suite-1793005370866225254",
+  "sources": {
+    "sources": {
+      "kernel": "https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86_64/netboot/vmlinuz-lts",
+      "python": "https://github.com/astral-sh/python-build-standalone/releases/download/20251014/cpython-3.12.12+20251014-x86_64-unknown-linux-gnu-install_only.tar.gz",
+      "busybox": "Ubuntu jammy-updates busybox-static 1:1.30.1-7ubuntu3.1 amd64"
+    },
+    "sha256": {
+      "vmlinuz-lts": "9d6eff6e7bcd5f5fba623f7a44c565ca6914da2b91110a8dc72a3a63cb088693",
+      "python312-parallel.tar.gz": "1ab2b6594d1c3d76cbebea09d6bc3e6ba68d8eb3b6322080375c4cc3dd188f34",
+      "busybox-static_1%3a1.30.1-7ubuntu3.1_amd64.deb": "833b81ad44c4e201059e1bbb1dab285d5d0488736db169adfaa677fd953baae6"
+    }
+  },
+  "raw_evidence": {
+    "linux-simu": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005370910902005",
+    "topology8": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005375083116118",
+    "disconnect": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005379255637578",
+    "wrong-id": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005383131479168",
+    "timeout": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/run-1793005387003199846",
+    "reset-inflight": "/workspace/GIT/pcie_qemu/experiments/qemu_stage1/reset-1793005420809519239"
+  }
+}
