@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "profile": "single-die-functional-experiment",
+  "compatibility": "experimental-only",
+  "runtime": {
+    "source": "simulator/riscv-tests/packet_runtime_test",
+    "production_runtime_selected": false,
+    "firmware_source": "simulator/riscv-tests/firmware/firmware.c",
+    "runtime_func_cli": true,
+    "runtime_func_cfg": true,
+    "created_harts": [0, 1, 2, 16, 17, 18, 19],
+    "created_npu_models": 4,
+    "dispatched_mcu_harts": [1],
+    "dispatched_npu_harts": [16],
+    "mcu_entry": "0x40000000",
+    "npu_entry": "0x4000000000",
+    "control_base": "0x4100100000",
+    "packet_bytes": 160,
+    "descriptor_bytes": 128,
+    "tensor_instruction": "0x8204000b",
+    "completion_bytes": 33792,
+    "completion_sha256": "37121ee2cd6afaed02f18587ed683d6fb5d5c4a6cd3b078f682a77891fe7e015",
+    "task_transport": "sm_file FIFO; MCU-NPU DDR polling",
+    "ready": "no explicit software ready message in this reference",
+    "stop": "explicit opcode 0 after task requests; dispatcher exits",
+    "golden_tolerance_approved": false
+  },
+  "internal_mailbox": {
+    "source": "simulator/riscv-isa-sim/riscv/mbox.cc",
+    "base": "0x18019000",
+    "banks": 6,
+    "bank_stride": "0x68",
+    "channels_per_bank": 8,
+    "bank_harts": [1, 2, 16, 17, 18, 19],
+    "status_offset": 0,
+    "status_write": "W1C",
+    "enable_offset": 4,
+    "data0_offset": 8,
+    "data1_offset": 12,
+    "send_offset": 16,
+    "channel_stride": 12,
+    "send_read": 0,
+    "send_write": "nonzero sets pending, including when disabled",
+    "irq_condition": "pending & enable",
+    "mcu_irq_base_default": 137,
+    "npu_irq_base": 19,
+    "irq_channel_formula": "base + 7 - channel",
+    "host_bar_mapping": null,
+    "host_task_channel": null
+  },
+  "shared_ddr_design": {
+    "status": "P1 implementation contract, not implemented",
+    "regions": [
+      {"name": "DDR0", "device_base": "0x20000000", "size": "0x40000000", "fd_offset": 0},
+      {"name": "DDR1", "device_base": "0x4000000000", "size": "0x4000000000", "fd_offset": 0}
+    ],
+    "backing": "one sparse memfd per region per card, MAP_SHARED",
+    "exclude": ["L1", "MCU SRAM", "MMIO"],
+    "capacity_policy": "preserve current address span; allocate pages on demand",
+    "host_access": "BAR/inbound validation before device offset; Host IOVA is not a device offset"
+  },
+  "real_interface_missing": [
+    "Host driver source/version and target architecture/kernel",
+    "production runtime image/entry/task sample binding",
+    "PCI vendor/device/class/revision/function layout",
+    "BAR types/sizes/attributes/inbound and mailbox offsets",
+    "HDMA synthesized configuration, enabled channels and descriptor mode",
+    "outbound/ATE/iATU windows and NPU external address classification",
+    "MSI/MSI-X vector mapping, mask/ack and reset defaults"
+  ]
+}
