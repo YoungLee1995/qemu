@@ -2,11 +2,13 @@
 
 更新日期：2026-10-27。用途：内部联合仿真开发、任务拆分和验收。本文及后续 AI 辅助实验产物不用于 QEMU 上游贡献，遵循 [QEMU 内容来源政策](../docs/devel/code-provenance.rst)。
 
+当前代码准入结论与本轮重跑证据见 [P0 阶段准入评估与 P 阶段开发方案](P0阶段准入评估与P阶段开发方案.md)：runtime 已完成开发调试，满足启动 P0 的条件；P0 出口仍需完成基线、运行期接口及适配契约冻结。
+
 ## 1. 项目目的与依据
 
 构建一个 Host/Root Complex、一个 PCIe switch、八个 NPU PCIe device 的功能仿真平台，让硬件平台对应的 Host Linux 驱动与现有 MCU runtime/NPU 任务在软件环境中联合运行，验证任务下发、数据搬运、地址隔离、跨卡访问、通知、错误和复位。平台用于驱动及设备软件联调，提供后续协议与性能模型的功能基线。
 
-当前范围与架构以 [PCIE Switch 集群功能仿真器](PCIE%20Switch集群功能仿真器.md) 为准；[EMU demo 可行性分析](EMU参考demo转软件仿真可行性分析.md)补充已有源码/手册的利用方式和静态疑点。[需求决策记录](nccl-simulator-decisions.md)及[原始需求](pci-switch-8card-simulator-requirements.md)保留需求来源，冲突处服从新架构。寄存器与协议的具体行为仍以锁定版本的真实软件和硬件资料为准。
+当前范围与架构以 [PCIE Switch 集群功能仿真器](PCIE%20Switch集群功能仿真器.md) 为准；[EMU demo 可行性分析](EMU参考demo转软件仿真可行性分析.md)补充已有源码/手册的利用方式和静态疑点。[群内对话技术总结](群内对话技术总结.md)及[工具链组需求清单](工具链组需求清单pci-switch-8card-simulator-requirements.md)保留需求来源，冲突处服从新架构。寄存器与协议的具体行为仍以锁定版本的真实软件和硬件资料为准。
 
 ### 1.1 本次明确的范围调整
 

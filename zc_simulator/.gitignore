@@ -1,0 +1,11 @@
+# Generated local P0 assessment results and manifests
+/p0/evidence/
+
+# Runtime logs, IPC endpoints, temporary files, and Python caches
+*.log
+*.sock
+*.fifo
+*.pid
+*.tmp
+__pycache__/
+*.py[cod]
