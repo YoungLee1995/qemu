@@ -1,17 +1,28 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile": "single-die-functional-experiment",
   "compatibility": "experimental-only",
   "runtime": {
     "source": "simulator/riscv-tests/packet_runtime_test",
-    "production_runtime_selected": false,
     "firmware_source": "simulator/riscv-tests/firmware/firmware.c",
     "runtime_func_cli": true,
     "runtime_func_cfg": true,
-    "created_harts": [0, 1, 2, 16, 17, 18, 19],
+    "created_harts": [
+      0,
+      1,
+      2,
+      16,
+      17,
+      18,
+      19
+    ],
     "created_npu_models": 4,
-    "dispatched_mcu_harts": [1],
-    "dispatched_npu_harts": [16],
+    "dispatched_mcu_harts": [
+      1
+    ],
+    "dispatched_npu_harts": [
+      16
+    ],
     "mcu_entry": "0x40000000",
     "npu_entry": "0x4000000000",
     "control_base": "0x4100100000",
@@ -23,7 +34,8 @@
     "task_transport": "sm_file FIFO; MCU-NPU DDR polling",
     "ready": "no explicit software ready message in this reference",
     "stop": "explicit opcode 0 after task requests; dispatcher exits",
-    "golden_tolerance_approved": false
+    "golden_tolerance_approved": false,
+    "role": "reproducible packet integration test fixture; does not replace existing internal runtime"
   },
   "internal_mailbox": {
     "source": "simulator/riscv-isa-sim/riscv/mbox.cc",
@@ -31,7 +43,14 @@
     "banks": 6,
     "bank_stride": "0x68",
     "channels_per_bank": 8,
-    "bank_harts": [1, 2, 16, 17, 18, 19],
+    "bank_harts": [
+      1,
+      2,
+      16,
+      17,
+      18,
+      19
+    ],
     "status_offset": 0,
     "status_write": "W1C",
     "enable_offset": 4,
@@ -51,21 +70,49 @@
   "shared_ddr_design": {
     "status": "P1 implementation contract, not implemented",
     "regions": [
-      {"name": "DDR0", "device_base": "0x20000000", "size": "0x40000000", "fd_offset": 0},
-      {"name": "DDR1", "device_base": "0x4000000000", "size": "0x4000000000", "fd_offset": 0}
+      {
+        "name": "DDR0",
+        "device_base": "0x20000000",
+        "size": "0x40000000",
+        "fd_offset": 0
+      },
+      {
+        "name": "DDR1",
+        "device_base": "0x4000000000",
+        "size": "0x4000000000",
+        "fd_offset": 0
+      }
     ],
     "backing": "one sparse memfd per region per card, MAP_SHARED",
-    "exclude": ["L1", "MCU SRAM", "MMIO"],
+    "exclude": [
+      "L1",
+      "MCU SRAM",
+      "MMIO"
+    ],
     "capacity_policy": "preserve current address span; allocate pages on demand",
     "host_access": "BAR/inbound validation before device offset; Host IOVA is not a device offset"
   },
-  "real_interface_missing": [
-    "Host driver source/version and target architecture/kernel",
-    "production runtime image/entry/task sample binding",
-    "PCI vendor/device/class/revision/function layout",
-    "BAR types/sizes/attributes/inbound and mailbox offsets",
-    "HDMA synthesized configuration, enabled channels and descriptor mode",
-    "outbound/ATE/iATU windows and NPU external address classification",
-    "MSI/MSI-X vector mapping, mask/ack and reset defaults"
+  "p0_scope": "baseline-and-pcie-adaptation-design",
+  "p0_status": "closed; implementation acceptance continues in P1/P2",
+  "accepted_software_baseline": {
+    "runtime_status": "existing simu internal runtime aligned with hardware, confirmed by user",
+    "core_source": "simulator/riscv-isa-sim/smart",
+    "reuse": [
+      "simulator/riscv-isa-sim/riscv",
+      "simulator/riscv-isa-sim/spike_main",
+      "simulator/riscv-tests/firmware"
+    ],
+    "additional_runtime_image_required": false,
+    "additional_host_driver_required_for_p0": false,
+    "pcie_reference": "simulator/pcie-demo (Zebu version) and simulator/寄存器手册",
+    "guest_baseline": "existing stage1 x86_64 Q35 Linux/initramfs and stage1/guest-test.c",
+    "stage1_status": "experimental EP + socket/FIFO + actual Tensor task roundtrip accepted; not HDMA/iATU/MSI compatibility"
+  },
+  "followup_pcie_work": [
+    "P1: reuse stage1 guest and EP baseline; implement shared DDR and runtime mailbox/ready integration",
+    "P1: implement BAR/configuration/interrupt mapping from Zebu reference and register manuals; document software profile choices where unspecified",
+    "P2: implement HDMA supported channels/descriptor mode, outbound/ATE/iATU and NPU external address classification",
+    "P1/P2: validate MSI/MSI-X mask/ack/reset behavior and in-flight write termination",
+    "Future compatibility: map an independently supplied Host driver if one becomes available; not a P0 prerequisite"
   ]
 }

@@ -23,14 +23,14 @@ Python 3、numpy、GNU C/C++、make、dtc、Boost 开发库及 RISC-V 裸机工�
 - `results.json`：各步骤命令、目录、返回值、耗时及显式判据。
 - `mock/results.json`：三笔任务、五笔拒绝、最后 STOP 的逐笔结果。
 
-`local_baseline_pass=true` 表示本地软件回归通过；`p0_full_exit=false`、`real_driver_accepted=false`、`golden_accepted=false` 保留各自验收边界。MoE 必须匹配已冻结的旧路径哈希，golden 数值差异另报，不用宽松 checker 的退出码替代数值验收。
+`local_baseline_pass=true` 表示本地软件回归通过；当前 `p0_scope=baseline-and-pcie-adaptation-design`，基线通过后 `p0_full_exit=true` 表示当前基线/设计范围的出口关闭，`real_driver_accepted=false`、`golden_accepted=false` 保留各自验收边界。旧运行记录按旧判据保留，不追改。MoE 必须匹配已冻结的旧路径哈希，golden 数值差异另报，不用宽松 checker 的退出码替代数值验收。
 
-当前 QEMU 仅记录版本/差异，不重新构建或运行其历史阶段测试；P1 联合构建需将实际 guest kernel、驱动和 QEMU 配置纳入基线。
+当前 QEMU 仅记录版本/差异，不重新构建或运行其历史阶段测试；P1 联合构建复用 stage1 已固定的 guest kernel、initramfs、用户态测试及 QEMU 配置；PCIe 参考为现有 Zebu demo/寄存器手册。
 
 ## 配置与后续实施
 
 [启动与接口契约](启动与接口契约.json) 固定本轮实验镜像入口、核数、内部 mailbox 和内存地址，缺失字段使用 null/明确清单。该文件是登记契约，当前 runner 的工作流仍在 Python 中定义，不宣称已经由 JSON 驱动模型。
 
-[P1适配设计与验收矩阵](P1适配设计与验收矩阵.md) 定义后续内存、消息、寄存器和生命周期的实施约束；[P0执行与验收记录](P0执行与验收记录.md) 区分已完成、设计完成和待外部资料关闭的项目。
+[P1适配设计与验收矩阵](P1适配设计与验收矩阵.md) 定义后续内存、消息、寄存器和生命周期的实施约束；[P0执行与验收记录](P0执行与验收记录.md) 记录 P0 已收敛及移交 P1/P2 的项目。simu 内部 runtime 直接复用，不要求额外 runtime 镜像或独立 Host 驱动。
 
 运行日志、二进制、FIFO、构建目录等均在 `evidence/` 下忽略；脚本和契约进入版本管理。

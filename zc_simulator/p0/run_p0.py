@@ -79,7 +79,8 @@ def main():
     out = (args.output or HERE / 'evidence' / datetime.now(timezone.utc).strftime(
         'run-%Y%m%dT%H%M%S-%fZ')).resolve()
     out.mkdir(parents=True, exist_ok=False)
-    results = {'schema_version': 1, 'started_utc': datetime.now(timezone.utc).isoformat(),
+    results = {'schema_version': 2, 'p0_scope': 'baseline-and-pcie-adaptation-design',
+               'started_utc': datetime.now(timezone.utc).isoformat(),
                'output': str(out), 'steps': {}, 'checks': {}, 'source_stable': False,
                'build_mode': 'fresh isolated Spike, firmware, dispatch, runtime and standalone',
                'profile': 'single-die-functional-experiment',
@@ -226,6 +227,8 @@ def main():
         check('source_stable', before == after)
         results['source_stable'] = True
         results['local_baseline_pass'] = True
+        # Scope excludes P1/P2 PCIe implementation and external-driver compatibility.
+        results['p0_full_exit'] = True
     except Exception as error:
         results['error'] = f'{type(error).__name__}: {error}'
         results['local_baseline_pass'] = False
