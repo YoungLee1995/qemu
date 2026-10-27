@@ -1,17 +1,26 @@
 # EMU 参考 demo 转软件仿真可行性分析
 
-日期：2026-10-27。性质：内部平台静态分析与实施建议；本轮没有移植或执行新 demo，没有改变第一阶段的运行与验收结论。
+日期：2026-10-27。修订依据：[PCIE Switch 集群功能仿真器](PCIE%20Switch集群功能仿真器.md)。性质：内部平台静态分析与实施建议；本轮更新项目范围与实施路径，没有移植或执行新 demo，也没有改变第一阶段的历史验收结论。
 
-## 1. 结论
+## 1. 结论与项目目的
 
-**可以用于开发所需的软件仿真代码，最直接的用途是实现第二阶段的 PCIe EP、地址转换、固件加载和 HDMA 功能模型；但当前上传内容不足以直接移植出“真实工具链包 → 生产 runtime → NPU 执行”的完整闭环。**
+**EMU demo 可以作为 PCIe/HDMA 功能建模和驱动访问序列的参考，但项目开发主线应当是复用现有单 die 软件，补上多卡 PCIe 联合仿真能力。** 按最新架构，单 die runtime、BSP、MCU/NPU 内部驱动、mailbox、本地 DMA 和启动代码已与硬件对齐，作为软件基线整体复用；无需将 BootROM demo 改造成另一套 runtime。
 
-当前包的主体是 MCU BootROM/裸机 PCIe 驱动及测试片段。应保留其中的软件流程作为被测程序，在 QEMU/Spike 中补上它所访问的硬件行为，而不是把驱动中的寄存器写入函数直接复制为设备模型。工具链生成的命令包、生产 runtime 的解析与调度代码仍需单独提供。
+平台的用途是在软件环境中运行硬件平台对应的 Host 驱动和现有设备任务，验证配置访问、任务下发、HDMA/NPU DMA 数据搬运、Host IOMMU、跨卡 P2P、完成通知、错误和复位。目标拓扑为一个 Host/RC、一个 switch、八个 endpoint；每个 endpoint 连接一个独立 NPU simulator 进程，首期每卡启用一个 MCU 和一个 NPU，配置记录实际创建及启用核数。
 
-建议立即将这些资料用于第二阶段接口对齐和单卡最小实验。优先跑通 BAR2 → SRAM/IPC 的固件下载，再实现 HDMA 双向 Host IOVA DMA，最后接生产 runtime 和真实命令包。第一阶段的假包闭环继续作为回归基线。
+任务沿用现有 mailbox/队列及参数协议，大块数据走 HDMA 或 NPU DMA。不新建工具链业务包 ABI，不开发 CCL、collective、通信算法或完整算子库。MCU/NPU 镜像按现有 firmware 配置和 dispatcher 从固定入口启动，实际执行初始化并发布 ready；真实 ROM、Host 下载固件及完整冷启动链不属于首期范围。
+
+因此，**先实现共享 DDR、双侧桥接、真实 EP/mailbox 与常驻任务，再通过统一 PCIe 访问服务分别打通 HDMA 和 NPU DMA 的 Host 路径，最后扩展双卡 P2P 和八卡回归。** BAR2 下载小固件、完整 BootROM 移植仅作为后续可选实验，不再作为当前第一步。
+
+### 1.1 与此前分析的关系
+
+此前“上传目录没有生产 runtime/真实工具链包”的结论是对该目录文件的观察；最新架构已明确这些单 die 软件能力作为既有基线复用，不能据此要求重新开发或重复交付整套 SDK。实施时定位现有代码、镜像、配置和任务用例，并保存版本及运行证据即可。架构声明软件基线可复用，不等于 QEMU 联合路径已经验收。
+
+第 3、5、6 节保留对 EMU 参考代码的静态发现。BootROM/FW IPC 相关问题只在实际复用该路径时处理；真实运行期驱动使用的寄存器、HDMA、中断、地址转换问题需要优先核对。
 
 ## 2. 本轮实际审查的资料
 
+- [PCIE Switch 集群功能仿真器](PCIE%20Switch集群功能仿真器.md)：本次修订的项目目的、首期范围、软件复用和模型分工依据。以下源码/手册条目沿用前轮静态审查记录，本次未重新执行 demo。
 - `simulator/pcie-demo`：29 个文件，含 11 个 C 文件、17 个头文件和 1 个资料位置说明；未包含 Makefile/CMake、链接脚本、启动汇编、ELF/bin、Host Linux 驱动、启动脚本或参考日志。
 - `T100 MEMMAP_Pre95V3.xlsx`：检查地址表、版本记录及相关页签；后文以 `address_map` 的 Excel 原始行号定位。
 - `hs_pcie_x8_wrap_reg.docx`、`pd_hs_sub_wrap_reg.docx`：提取正文和表格文字，重点检查 PCIe wrapper 的控制/状态、复位及中断条目。
@@ -44,7 +53,7 @@ main.c:main
 
 依据：`src/main.c:175/243/305`、`src/load_firmware.c:48/431/813`、`src/pcie/pcie_ep.c:756/872`。
 
-**这条 PCIe 加载分支本身没有启动 HDMA。** 当前是 Host 先把固件放到可见存储区，再通过 IPC 通知 MCU。不能把“存在 dw_hdma.c”解释为“固件已通过 HDMA 加载”。如果仍按总体方案要求使用 HDMA，需要另行接入该流程。
+**这条 PCIe 加载分支本身没有启动 HDMA。** 当前是 Host 先把固件放到可见存储区，再通过 IPC 通知 MCU。不能把“存在 dw_hdma.c”解释为“固件已通过 HDMA 加载”。最新架构不要求首期通过 HDMA 下载固件；HDMA 用于运行期数据搬运，固件加载能力可以后续独立接入。
 
 ### 3.2 包内的独立测试能力
 
@@ -61,19 +70,21 @@ main.c:main
 
 ## 4. 能复用什么，需要写什么
 
-| 原内容 | 软件仿真中的用途 | 适配方式 |
+| 内容 | 项目用途 | 适配边界 |
 | --- | --- | --- |
-| `unified_pcie_regs.h`、`dw_hdma.h`、地址表 | 寄存器、字段和描述符的对照依据 | 核对 IP 集成参数、读写属性、复位值与地址冲突后采用，不能整份无审查照搬 |
-| `dw_pcie.c` 的 iATU 配置/探测 | MCU 端被测驱动与访问序列 | 保留驱动逻辑，模型实现探测掩码、窗口数量、使能读回和转换效果 |
-| `pcie_ep.c` 的 SRAM/IPC inbound 流程 | 第二阶段最先落地的真实接口实验 | 将 BAR 命中转入唯一的卡内存/寄存器后端，MCU 与 Host 读取同一份状态 |
-| `dw_hdma.c` | 驱动侧寄存器提交和描述符构造参考 | 新写 HDMA 功能模型：取描述符、搬运、错误、STOP/ABORT、清状态及复位取消 |
-| `pcie_ipc.c`、`load_firmware.c` | 启动握手、固件头解析、加载入口 | 先修清地址/握手疑点，再适配到 Spike；不能替代生产 runtime |
-| `pcie_common.c` 的 BISR/PHY/link | BootROM 执行所需的外围寄存器行为 | 功能模式实现受控制的状态推进，不做模拟电气训练；错误/超时仍可观察 |
-| `main.c` | 完整 BootROM 流程参考 | 依赖过多，最小实验优先抽取 PCIe 启动路径；完整 BootROM 兼容需补 SDK/外设 |
-| 现有 Spike Tensor/scheduler、常驻执行器 | 实际 NPU 动作执行 | 继续复用，生产 runtime 的包解析入口另行接入 |
-| 第一阶段 QEMU/socket 桥 | 拓扑、进程隔离、非阻塞事件处理经验 | 现有固定 160 字节协议须扩展为有类型、长度、request ID、复位代次的控制/数据协议 |
+| 现有单 die runtime、BSP、内部驱动、MCU/NPU 启动代码 | 首期软件基线 | 沿用现有镜像和入口，不重新设计 runtime 或任务协议；记录平台适配差异 |
+| 现有 mailbox、NPU 指令/本地 DMA、Tensor/scheduler | 任务接收、内部调度与实际执行 | 保留语义与本地路径，在 NPU DMA 实际访存处增加外部地址分流和异步结果回传 |
+| `unified_pcie_regs.h`、`dw_hdma.h`、地址表 | 寄存器和描述符对照 | 以目标 IP 综合配置及实际驱动为准，核对读写属性、复位值、基址、有效窗口 |
+| `dw_pcie.c` 的 iATU 探测/配置 | 设备侧访问序列参考 | QEMU 实现权威转换状态，卡侧 MMIO 代理访问；探测必须反映真实掩码与窗口数量 |
+| `dw_hdma.c` 和 `pcie_ep.c` 的搬运测试 | HDMA 通道、描述符和完成行为参考 | 在 QEMU endpoint 内新增 HDMA 状态机；首个真实驱动闭环即支持驱动实际使用的模式，不固定要求 non-LLM 先于 LLM |
+| `pcie_ep.c` 的 SRAM/IPC inbound 流程 | 可选加载实验、窗口配置参考 | 不据此推定正式运行期 mailbox 的位置和格式；Host BAR 与 MCU 访问沿用现有 mailbox 状态 |
+| `pcie_ipc.c`、`load_firmware.c`、`main.c` | BootROM/FW 加载参考 | 不在首期关键路径；不把 INIT/PING/FW 协议升级为业务提交协议 |
+| `pcie_common.c` 的 PHY/BISR/link | 实际驱动触及的初始化寄存器参考 | 仅实现首期软件必需行为；完整 ROM/电气训练不作为门槛 |
+| 第一阶段 QEMU/socket 桥 | 非阻塞事件与进程隔离经验 | 固定 160 字节假包协议升级为内部控制/访问协议；大块设备 DDR 使用共享映射 |
 
-`unified_driver_common.h:266—295` 是 volatile 物理地址解引用。在 Spike 上运行 MCU 程序时，可以保留这种访问方式，但必须在 Spike 总线提供对应设备；把同一源码编译成宿主进程直接调用会访问无效宿主地址，需要专门的 MMIO 抽象。
+`unified_driver_common.h:266—295` 是 volatile 物理地址解引用。MCU 软件保留这一方式，Spike 在对应 SoC 地址注册代理设备，将 PCIe/HDMA/转换寄存器请求转交 QEMU；不把这些裸地址当宿主进程指针。
+
+新增工作集中于 QEMU EP/HDMA/转换/P2P、双侧桥接、共享 DDR、NPU 外部 DMA 适配、生命周期和联合回归。已有软件中的任务字段、内部 DMA 驱动和 mailbox 处理直接复用。
 
 ## 5. 已能对齐的地址与仍未冻结的配置
 
@@ -90,6 +101,8 @@ main.c:main
 | IPC 四寄存器 | `0x18103180 + chip_id*0x1000`，偏移 `0/4/8/c` | INIT/PING/FW 协议由 `pcie_ipc.h` 定义；单卡先只使用 chip 0 |
 | MCU outbound aperture | `0x18000000000` | 第 236 行一致；它不是 Host GPA/IOVA |
 
+以下是 BootROM demo 的窗口推导，用于理解参考代码；正式首期 BAR/mailbox/DDR 布局按硬件平台运行期驱动冻结，不以此推导替代。
+
 当前 `pcie_ep_config_fw_inbound_atu()` 的有效映射是：
 
 ```text
@@ -104,7 +117,9 @@ Host 分配的 BAR2 基址 B
 
 另外，demo 的 iATU 声明范围 `+0x300000`、大小 1 MiB，与 HDMA `+0x380000` 的声明范围存在包含/重叠。建模时须明确有效子区间、窗口数量和空洞，不能把整个范围当普通可读写寄存器数组。
 
-## 6. 移植前必须处理的具体问题
+## 6. 参考代码疑点与处理优先级
+
+以下问题只在所选驱动/路径使用相关代码时成为实施项。优先处理运行期 HDMA、转换和中断；§6.2 的固件启动握手及 §6.3 的固件校验属于可选 BootROM 路径，不阻塞固定入口启动。不要根据片段中的疑点推断已对齐的单 die 软件整体不可用。
 
 ### 6.1 完成状态与等待行为
 
@@ -132,66 +147,96 @@ Host 分配的 BAR2 基址 B
 
 这些是静态审查发现，不代表已在 EMU 或软件仿真上复现故障；也不应通过模拟错误寄存器行为来让原测试表面通过。
 
-## 7. 推荐的模型分工
+## 7. 按最新架构确定的模型分工
 
 ```mermaid
 flowchart LR
-    H[来宾 Linux Host 驱动/测试] --> Q[QEMU PCIe EP\n配置空间/BAR/MSI/Host DMA]
-    Q <--> A[异步控制与数据协议\n请求ID/长度/复位代次]
-    A <--> S[Spike 卡侧适配\nDBI/wrapper/iATU/HDMA寄存器]
-    S <--> M[唯一卡内存视图\nSRAM/DDR/IPC]
-    U[MCU BootROM/runtime] <--> S
-    U <--> M
-    U --> N[已有 NPU 执行模型]
-    N <--> M
+    H[来宾 Linux 原硬件驱动与测试] --> Q[QEMU endpoint
+配置/BAR/MSI或MSI-X/HDMA/地址转换]
+    Q <--> B[Unix socket 双侧桥接
+寄存器/通知/外部请求/结果]
+    B <--> S[独立 NPU simulator
+MCU runtime/NPU/内部 mailbox/本地中断]
+    Q <--> D[每卡共享 DDR
+memfd 与 MAP_SHARED]
+    S <--> D
+    Q --> V[统一 PCIe 访问服务]
+    V --> I[源 function DMA AddressSpace
+Host IOMMU/Host RAM]
+    V --> P[受限 switch P2P 路由
+目标 BAR/inbound/共享 DDR]
 ```
 
-QEMU 负责 PCIe Host 可见行为及 requester/IOMMU 集成；Spike 提供 MCU 访问的 SoC 地址设备。iATU/HDMA 控制状态必须各有唯一所有者，通过协议同步，不维护互不关联的两套寄存器。图中将 MCU 可见寄存器放在卡侧是推荐分工，实际 HDMA 执行调度位置可以调整，但搬运只能执行一次。
+### 7.1 状态与数据归属
 
-现有 `simu_bridge.py` 只能转发固定 160 字节请求和固定形式响应，无法承载任意 MMIO、内存访问、DMA 和异步事件。可保留其进程隔离方式，新增协议能力和卡内存访问入口。QEMU 的 MMIO 回调不得同步等待 FIFO/Spike。
+一个 QEMU 管理八个 endpoint，分别连接八个后端进程，以隔离现有模型的全局状态。PCIe BDF/card ID 和后端 chip/die/core ID 分开管理。
 
-特别需要明确：MCU 的同步 load 如何等待后端响应、Host BAR 读取如何获得一致数据、两端同时访问 IPC 如何排序。可评估受控共享内存与异步更新，但必须覆盖原有较宽实验内存区间的分派，不能用地址别名意外覆盖 NPU 数据。仅在 socket 中增加操作码，还不能自动解决这些执行与一致性问题。
+QEMU 持有 PCIe、HDMA 和地址转换的权威状态；后端仅代理 MCU 对这些寄存器的访问。后端持有 MCU/NPU、内部 mailbox、本地中断状态，Host 通过 BAR/桥接访问同一份 mailbox。HDMA 完成/错误经桥接触发 MCU 本地中断；MCU 通过硬件控制路径触发 Host MSI/MSI-X。两类通知的 pending/mask/ack 分开维护。
 
-地址路径至少区分以下三类：
+每卡对外 DDR 由 QEMU 与对应后端通过 memfd/MAP_SHARED 等机制共享，BAR、HDMA、NPU DMA、P2P 在权限允许范围访问同一份数据。容量可配置；L1、MCU SRAM 默认保留现有本地模型，HDMA 可达范围由硬件决定，不默认共享所有本地存储。
 
-- Host → BAR → inbound iATU → die local：使用 Linux 实际分配的 BAR，支持解码关闭和重定位。
-- MCU CPU outbound → outbound iATU → Host IOVA；HDMA 的 Host 侧地址按其 ATU_BYPASS 配置决定是否先过设备 iATU。两者访问 Host 内存时都必须保留 requester 对应的 IOMMU 检查。
-- Peer 请求 → 受限 peer BAR 路由 → 目标 inbound iATU → 目标 local：留待第三阶段实现与隔离验证。
+### 7.2 桥接、可见性与生命周期
 
-**HDMA CONTROL1 bit9 的 ATU_BYPASS（手册 3989 页）仅绕过设备 iATU，不表示绕过 Host IOMMU，也不自动实现 P2P。** `dw_hdma.c` 的 `0x202/0x203` 已设置该位，HDMA 测试的 Host 地址应按实际 PCIe 总线地址/来宾 DMA API 返回的 IOVA 解释，不能替换成宿主指针或来宾任意 GPA。
+`simu_bridge.py` 的固定假包转发不能直接承担上述职责，需要扩展寄存器代理、mailbox 通知、HDMA 本地中断、Host MSI 控制、NPU 外部读写/响应，以及初始化/reset/退出/断连。内部消息包含设备、request ID、会话和复位代次；关联原任务 ID，但不改变业务 ABI。
 
-## 8. 具体实施顺序与通过条件
+QEMU MMIO 回调不得同步阻塞等待后端。对后端持有的 mailbox，需明确采用 QEMU 可同步读取的一致访问视图及异步通知机制，并核对 side effect、pending/mask/ack；普通消息缓存不能冒充权威寄存器。MCU 等待寄存器/外部访问响应时，两侧消息泵及中断处理仍需推进，避免相互等待。
 
-| 步骤 | 最小实施内容 | 验收证据 |
+共享映射只解决数据唯一性，还须按既有协议实现“数据/描述符发布 → 通知 → 执行 → 数据落地可见 → 完成状态 → 中断”。跨引擎依赖由软件显式同步；DMA 搬运只能执行一次，不能在 QEMU 和后端重复复制。
+
+reset 区分 channel/function/核/全卡范围：停止相关新请求，取消或排空旧访问，确认旧请求不再写内存，再重置并重新初始化。仅丢弃旧响应不足以阻止旧写入；会话、代次与共享句柄生命周期一并管理。
+
+### 7.3 两类 DMA 及地址路径
+
+NPU DMA 在原实际访存处区分本 die、本卡其他 die、PCIe outbound 窗口和非法地址。命中本地继续原路径，外部请求经过出口转换后送 QEMU；保持原指令/描述符、busy、依赖/fence、完成和错误处理。不能把所有本地未命中地址都当 PCIe；512 GiB 槽位及地址宽度按实际地图和描述符能力验证。
+
+HDMA 由 QEMU 通道/描述符状态机执行；两引擎独立提交和完成，共用 PCIe 访问服务。同一 function 使用同一 requester 身份。NPU 外部 DMA 不需要启动 HDMA 通道。
+
+- Host CPU → BAR → inbound/window → 目标寄存器或设备内存。
+- NPU DMA 的设备侧窗口地址 → outbound/ATE → Host IOVA → 源 endpoint DMA AddressSpace → Host IOMMU → Host RAM。
+- NPU DMA 的设备侧窗口地址 → outbound/ATE → peer 当前 BAR → switch 功能路由 → 目标 BAR/inbound → 目标 DDR；读结果返回源 NPU DMA 的本地目标。
+- HDMA 按描述符地址域和 ATU_BYPASS 配置进入 Host/P2P 路径，已转换地址不重复转换。
+
+ATE 泛指设备侧地址转换表，名称及布局按目标 SoC/IP。P2P 不过 Host IOMMU，不经 Host staging；检查拓扑、桥窗口、源 Bus Master、目标 Memory Space、权限、边界、P2P enable 和设备状态。BAR 变化后重新校验映射，P2P 禁用返回错误。
+
+**HDMA CONTROL1 bit9 的 ATU_BYPASS（手册 3989 页）仅绕过设备 iATU，不表示绕过 Host IOMMU。** `dw_hdma.c` 的 `0x202/0x203` 已设置该位；Host 地址按真实驱动下发的 IOVA 解释，不能用宿主指针或任意 GPA 替代。
+
+## 8. 调整后的实施顺序与通过条件
+
+本表与[分阶段实现方案](内部PCIe互联平台分阶段实现方案.md)的 P0—P4 对齐。步骤是开发计划，不表示已有实现。
+
+| 步骤 | 最小实施内容 | 通过条件 |
 | --- | --- | --- |
-| 0. 冻结资料 | 源码哈希、EMU 构建配置、链接 map、PCI 配置 dump、BAR/iATU 参数；确定上述疑点处理方式 | 同版本接口对照表；未知项明确标记 |
-| 1. 最小 MCU 构建 | 抽取 PCIe EP/IPC 所需代码，补 startup/linker/timer/cache/log 适配，避免完整 BootROM 外设依赖 | ELF/反汇编、内存布局、Spike 实际启动日志 |
-| 2. BAR2 固件路径 | QEMU BAR2 + 卡侧 DBI/iATU 探测 + SRAM/IPC 一致视图；Host 写小固件并通知 MCU | 下载字节全量校验、固件头解析、实际跳转后的 ready 标志、重复下载/复位行为 |
-| 3. HDMA non-LLM | 初始化基址，Host 用 DMA API 分配并提供 IOVA，先 16 字节双向，再覆盖长度/边界 | 内容一致；未映射/只读/越界失败；STOP/ABORT/清状态及超时有据可查 |
-| 4. HDMA LLM 与加载 | 实现描述符取数、CB/TCB/LLP、终止/非法链及复位取消，再接固件/数据加载 | 非连续描述符、错误地址、在途复位；HDMA 下载后实际 runtime-ready |
-| 5. 真实工具链包 | 接 Host 提交格式、常驻 runtime 解析与已有 NPU 执行，保留正式完成语义 | 连续两包以上无重启；逐包 trace；NPU 真实结果与参考一致；非法包不执行 |
-| 6. 扩双卡/八卡 | 按原方案逐阶段实现 peer 路由、隔离和并发，重做真实 BAR 资源实验 | IOMMU 与 P2P 并存；最终 56 有向卡对及八卡业务回归 |
+| P0 基线与接口 | 定位已对齐 runtime/BSP/驱动/镜像/任务；固定 QEMU、IP、Host 平台、BAR、转换与中断接口 | 单 die 原有本地任务回归；版本清单和真实驱动接口表；无重复 SDK 交付要求 |
+| P1a 共享与桥接 | 单 endpoint/单后端、共享 DDR、寄存器代理、mailbox、事件和生命周期 | 双方观察同一 DDR 数据；控制访问不阻塞；会话/复位代次隔离 |
+| P1b 常驻软件闭环 | 按现有 firmware 配置/dispatcher 启动一个 MCU 和一个 NPU，复用 Host mailbox 与 MSI/MSI-X | 初始化在核上执行并发布 ready；原驱动 probe；连续任务后返回服务循环，后端不退出 |
+| P2 公共访问服务 | Host IOMMU 地址空间、请求归属和失败回传 | 非恒等 IOVA、跨页、权限、未映射与撤销；错误归属源设备 |
+| P2-H HDMA Host 分支 | endpoint HDMA 模型，支持实际驱动使用的描述符模式/通道/地址宽度 | 双向内容、真实描述符、STOP/ABORT、mask/ack、停止/复位和 MCU 本地通知 |
+| P2-N NPU DMA Host 分支 | 原 DMA 实际访存接出口转换和外部请求/结果 | 不启动 HDMA 也能读写 Host；保留 busy/fence；失败不报成功 |
+| P2-M 混合任务 | 两引擎接既有 runtime 任务与完成通知 | HDMA/HDMA、NPU/NPU、HDMA/NPU、NPU/HDMA 四种输入输出组合；数据先可见再发完成 |
+| P3 双卡 P2P | 动态 peer BAR、受限路由、目标 inbound、读响应返回 | 两类引擎按实际能力分别读写；与 Host DMA 并存；禁用/重定位/越界/重配置/reset 明确失败 |
+| P4 八卡交付 | 一个 QEMU、八个独立后端；自动生成拓扑与启动配置 | 56 个有向卡对、八卡 Host DMA/隔离/并发及故障恢复；原驱动/任务联合回归 |
 
-拟新增代码职责可以具体分为：QEMU 真实接口 EP、Spike PCIe MMIO 设备、iATU 窗口状态、HDMA 通道执行器、卡内存访问适配、Linux DMA 测试驱动、MCU 最小启动工程、端到端回归脚本。这些是后续开发项，本轮没有创建对应实现。
+P2-H 与 P2-N 在公共服务具备后可分别开发，不形成“先实现 HDMA、再实现 NPU DMA”的强制依赖。人员有限时分项串行落实，但首个真实驱动闭环必须支持其真实模式，不能仅凭 16 字节 demo 测试宣布完成。
 
-每一步均延续第一阶段的非阻塞 QEMU 事件处理、请求归属及复位隔离原则。先保留实验 EP 独立运行入口，真实接口模型通过同类回归后再迁移主路径，避免同时更换传输协议、加载方式与 NPU 执行入口而无法定位差异。
+新增代码职责为 QEMU EP/HDMA/转换/PCIe 访问服务/P2P、双侧桥接、共享 DDR 后端、NPU 外部 DMA 适配和联合回归。MCU/NPU 现有内部驱动与任务程序作为基线；启动差异集中在适配层。第一阶段假包保留独立回归入口，不作为最终软件兼容证据。
 
-## 9. 新资料关闭了哪些缺口
+## 9. 当前输入与仍需对齐的事项
 
-| 第一阶段待办 | 本次更新后的判断 | 仍需内容 |
+按最新架构，单 die 软件整体复用，增量输入收敛为三组；已有代码中包含的内容不重复索取。
+
+| 输入组 | 已有依据 | 增量确认及关闭条件 |
 | --- | --- | --- |
-| PCIe 寄存器/BAR/ATU/HDMA 资料 | 已取得一批可开发参考，不能再笼统标为全部未提供 | 项目集成参数、BAR sizing、配置 dump、复位/中断协议及地址冲突定案 |
-| VPS/ZeBu 参考 demo | 已取得 MCU BootROM/PCIe 源码片段 | 完整可构建工程、Host 配套程序、实际启动步骤和成功日志 |
-| 真实工具链包 | 当前包没有关闭这一缺口 | 最小实际包字节、生成版本、格式、参数依赖、目标动作及结果样本 |
-| 生产 MCU runtime | 当前包没有关闭这一缺口 | 常驻 runtime 源码/镜像、解析入口、调度/完成/错误协议和 MCU ISA/SDK |
-| Host 驱动与 DMA | 当前目录未提供 | Linux probe/BAR/MSI/DMA 路径；无法取得时可先写明确标记的最小测试驱动 |
-| P2P、八卡、NPU Host DMA | 没有新增实现证据 | 按第三/四阶段落实；HDMA 和 NPU DMA 是不同发动机，不能相互替代验收 |
+| Host/PCIe 硬件接口 | EMU PCIe/HDMA 片段、MEMMAP 和寄存器手册 | 锁定真实 Host 驱动/CPU 环境、IP 综合配置、BAR/内部地图、HDMA 地址路径、MSI/MSI-X 控制和复位范围；保存配置 dump 与驱动构建参数 |
+| 单 die 启动与运行协议 | 架构明确 runtime/BSP/内部驱动/启动代码已对齐可复用 | 定位工作区版本、镜像/入口/配置、mailbox 字段和完成路径，提供一项现有可重复任务；已有参数机制传入外部地址，不新增 NPU DMA 驱动 |
+| 联合验证样例 | 现有单 die 示例、第一阶段实验记录 | 确定输入输出、DMA 合法能力/边界、错误预期和参考结果；按模型/后端/guest 真实驱动三层形成覆盖报告 |
 
-第一阶段文档是 2026-10-26 的历史状态，本报告补充 2026-10-27 新资料到位后的判断，不追改历史验收记录。
+本次架构输入关闭了“需要重新寻找或开发生产 runtime”的方案假设，但未提供联合运行通过证据；源码目录观察和实际版本定位仍分别记录。第 6 节疑点应与真实被用到的驱动版本核对，避免将历史 demo 的调试路径变成正式模型契约。
 
-**下一项最值得做的工作：以当前源码为依据，建立“BAR2 下载小固件 → MCU 解析并启动 → ready 回传”的单卡实验，同时冻结真实 BAR/iATU/IPC 契约。** 这能最快将新资料转成可运行的软件仿真能力；工具链包和生产 runtime 继续作为后续业务闭环的独立接入依赖。
+第一阶段文档保持 2026-10-26 的历史事实。当前下一步是 **P0 软件基线定位和接口冻结 → P1 单卡共享 DDR/桥接/固定入口 ready/mailbox 闭环**。BAR2 固件下载与完整 BootROM 作为后续可选实验，不阻挡首期；性能与多 die 扩展独立验收。
 
 ## 10. 代码与方案索引
+
+- [项目架构与范围](PCIE%20Switch集群功能仿真器.md)
 
 - [总体方案](内部PCIe互联平台分阶段实现方案.md)
 - [第一阶段接口决策](第一阶段接口决策与待办清单.md)
