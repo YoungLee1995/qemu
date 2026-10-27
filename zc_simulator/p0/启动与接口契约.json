@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile": "single-die-functional-experiment",
   "compatibility": "experimental-only",
   "runtime": {
@@ -105,14 +105,66 @@
     "additional_runtime_image_required": false,
     "additional_host_driver_required_for_p0": false,
     "pcie_reference": "simulator/pcie-demo (Zebu version) and simulator/寄存器手册",
-    "guest_baseline": "existing stage1 x86_64 Q35 Linux/initramfs and stage1/guest-test.c",
-    "stage1_status": "experimental EP + socket/FIFO + actual Tensor task roundtrip accepted; not HDMA/iATU/MSI compatibility"
+    "guest_baseline": "stage1 Q35 Linux/initramfs and guest-test.c retained for regression; host-demo kernel module/application added as P1/P2 integration target",
+    "stage1_status": "experimental EP + socket/FIFO + actual Tensor task roundtrip accepted; not HDMA/iATU/MSI compatibility",
+    "host_reference": "simulator/host-demo/ssv_test_driver.c and ssv_test_app.c; source review and app build only, not guest integration accepted"
   },
   "followup_pcie_work": [
     "P1: reuse stage1 guest and EP baseline; implement shared DDR and runtime mailbox/ready integration",
     "P1: implement BAR/configuration/interrupt mapping from Zebu reference and register manuals; document software profile choices where unspecified",
     "P2: implement HDMA supported channels/descriptor mode, outbound/ATE/iATU and NPU external address classification",
     "P1/P2: validate MSI/MSI-X mask/ack/reset behavior and in-flight write termination",
-    "Future compatibility: map an independently supplied Host driver if one becomes available; not a P0 prerequisite"
-  ]
+    "P1: integrate host-demo PCI probe, coherent mmap and MSI-X; retain stage1 test profile",
+    "P2: validate host-demo file-load/get-result with IOMMU and explicit transport/ownership contract; do not infer HDMA mode from trigger"
+  ],
+  "host_demo": {
+    "status": "reference contract extracted; not yet integrated",
+    "source_sha256": {
+      "ssv_test_driver.c": "4f5766008810882651822048b908b7e8c39d177891e750561da8c799cba7400e",
+      "ssv_test_app.c": "59c52141f2c817b379d841dbe7aba586e6a05253c7ebec770473ee65be14c799"
+    },
+    "vendor_id": "0x16c3",
+    "device_id": "0xabcd",
+    "dma_coherent_bytes": 2097152,
+    "dma_address_semantics": "sysfs phys_addr returns dma_handle; DMA address/IOVA, not host physical pointer",
+    "msix_requested_min": 1,
+    "msix_requested_max": 32,
+    "msix_required_for_probe": true,
+    "bar2_fw_size": "0x200000",
+    "bar2_fw_ipc_offset": "0x200180",
+    "bar2_min_standard_size_inferred": "0x400000",
+    "bar4_transfer_offset": "0x18103180",
+    "bar4_min_standard_size_inferred": "0x20000000",
+    "bar_attributes_confirmed": false,
+    "transfer_register_offsets": {
+      "addr_low": 0,
+      "addr_high": 4,
+      "size_low": 8,
+      "size_high": 12,
+      "trigger": 16,
+      "crc_low": 20,
+      "crc_high": 24
+    },
+    "file_trigger": "0x5a5aa5a5",
+    "result_trigger": "0x72736c74",
+    "result_done": "0x646f6e65",
+    "result_header_bytes": 8,
+    "result_max_payload_bytes": 2097144,
+    "completion": "application polls coherent buffer; IRQ handler only logs, no business vector/ack contract",
+    "not_defined": [
+      "business task ABI",
+      "runtime mailbox Host channel/mapping",
+      "HDMA channels/descriptor mode",
+      "matching card-side file/result service",
+      "BAR types and MSI-X table/PBA BIR/offset",
+      "input-consumed handshake"
+    ],
+    "preintegration_fixes": [
+      "kernel API/Kbuild for guest kernel",
+      "IRQ dev_id type",
+      "remove unused mandatory hugepage allocation",
+      "DMA buffer ownership and bounded validation",
+      "minor/lifetime handling for recovery"
+    ]
+  }
 }

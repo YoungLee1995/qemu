@@ -34,3 +34,5 @@ Python 3、numpy、GNU C/C++、make、dtc、Boost 开发库及 RISC-V 裸机工�
 [P1适配设计与验收矩阵](P1适配设计与验收矩阵.md) 定义后续内存、消息、寄存器和生命周期的实施约束；[P0执行与验收记录](P0执行与验收记录.md) 记录 P0 已收敛及移交 P1/P2 的项目。simu 内部 runtime 直接复用，不要求额外 runtime 镜像或独立 Host 驱动。
 
 运行日志、二进制、FIFO、构建目录等均在 `evidence/` 下忽略；脚本和契约进入版本管理。
+
+新增Host参考：`simulator/host-demo`的驱动/应用已做静态分析及应用编译，见[接入影响评估](Host-demo接入影响评估.md)。已补入契约和后续验收矩阵，未列为当前`run_p0.py`的已运行来宾兼容测试。该脚本现有simulator源码清单会自动包含未忽略的host-demo文件；应用本次独立构建，内核模块集成归P1。

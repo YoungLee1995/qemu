@@ -1,5 +1,7 @@
 # 内部 PCIe 互联平台分阶段实现方案
 
+> 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](p0/Host-demo接入影响评估.md)。
+
 更新日期：2026-10-27。用途：内部联合仿真开发、任务拆分和验收。本文及后续 AI 辅助实验产物不用于 QEMU 上游贡献，遵循 [QEMU 内容来源政策](../docs/devel/code-provenance.rst)。
 
 当前代码准入结论与本轮重跑证据见 [P0 阶段准入评估与 P 阶段开发方案](P0阶段准入评估与P阶段开发方案.md)：runtime 已完成硬件对齐；P0 可复现基线与适配设计已收敛完成，进入 P1 PCIe 接入。现有 Zebu `pcie-demo`/寄存器手册是 PCIe 参考，复用 stage1 来宾环境及接入成果，不等待额外 runtime 镜像或独立 Host 驱动。
