@@ -25,6 +25,9 @@ static void p1_session_fail(ZCP1State *s, const char *reason)
         s->session_fd = -1;
     }
     s->active = s->session_ready = false;
+    if (s->p2.enabled) {
+        p2_cancel(s);
+    }
     s->error = 4;
     s->pending_type = 0;
     s->reset_pending = false;
@@ -150,7 +153,7 @@ static void p1_session_connect(ZCP1State *s)
     s->request = 0;
     s->last_done = s->notifications = 0;
     s->session_ready = s->active = false;
-    stq_le_p(payload, P1_CAPS);
+    stq_le_p(payload, P1_CAPS | (s->p2.enabled ? 16 : 0));
     stl_le_p(payload + 8, P1_MAX_PAYLOAD);
     memcpy(payload + 16, s->config_digest, 32);
     p1_session_send(s, P1_HELLO, payload, sizeof(payload), false);
@@ -228,7 +231,8 @@ static void p1_session_poll(ZCP1State *s)
         return;
     }
     if (s->pending_type == P1_HELLO && type == P1_HELLO_ACK && length == 48) {
-        if (ldq_le_p(frame + P1_HEADER) != P1_CAPS ||
+        uint64_t caps = P1_CAPS | (s->p2.enabled ? 16 : 0);
+        if (ldq_le_p(frame + P1_HEADER) != caps ||
             ldl_le_p(frame + P1_HEADER + 8) != P1_MAX_PAYLOAD ||
             ldl_le_p(frame + P1_HEADER + 12) ||
             memcmp(frame + P1_HEADER + 16, s->config_digest, 32)) {

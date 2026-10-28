@@ -30,8 +30,11 @@ OBJECT_DECLARE_SIMPLE_TYPE(ZCP1State, ZC_PCIE_P1)
 #define SERVICE_OFFSET 0x10000000ULL
 #define MAILBOX_OFFSET 0x18019000ULL
 
+#include "zc-pcie-p2.h"
+
 struct ZCP1State {
     PCIDevice parent_obj;
+    P2State p2;
     MemoryRegion bar0, bar2, bar4;
     QEMUTimer *timer;
     int32_t ddr0_fd, ddr1_fd, mailbox_fd;
@@ -75,6 +78,9 @@ static bool p1_ready(ZCP1State *s)
            p1_load(c + 4) == 1 && p1_load(c + 5) == 1;
 }
 
+
+#include "zc-pcie-p2-engine.h"
+
 static void p1_tick(void *opaque)
 {
     ZCP1State *s = opaque;
@@ -87,6 +93,9 @@ static void p1_tick(void *opaque)
                  (s->session_ready && !s->reset_pending)) &&
                 p1_load(s->mailbox + 0x404 / 4) == s->epoch &&
                 p1_load(s->mailbox + 0x408 / 4) == 1;
+    if (s->p2.enabled) {
+        p2_tick(s);
+    }
     if (p1_ready(s) && done && done != s->last_done) {
         s->last_done = done;
         s->notifications++;
@@ -130,6 +139,9 @@ static void p1_mbox_write(ZCP1State *s, hwaddr off, uint32_t value)
 static uint64_t p1_read0(void *opaque, hwaddr addr, unsigned size)
 {
     ZCP1State *s = opaque;
+    if (s->p2.enabled && addr >= P2_ATU_BASE) {
+        return p2_reg_read(s, addr);
+    }
     switch (addr) {
     case 0: return 0x5a435031;
     case 4: return 2;
@@ -145,6 +157,10 @@ static uint64_t p1_read0(void *opaque, hwaddr addr, unsigned size)
 static void p1_write0(void *opaque, hwaddr addr, uint64_t value, unsigned size)
 {
     ZCP1State *s = opaque;
+    if (s->p2.enabled && addr >= P2_ATU_BASE) {
+        p2_reg_write(s, addr, value);
+        return;
+    }
     /* Test-only IRQ injection independent of data completion. */
     if (addr == 32 && value < 32 && p1_ready(s)) {
         msix_notify(&s->parent_obj, value);
@@ -356,6 +372,11 @@ static void p1_reset(DeviceState *dev)
     }
     /* Reset blocks new writes until launcher has reaped/restarted backend. */
     s->active = false;
+    if (s->p2.enabled) {
+        p2_cancel(s);
+        memset(s->p2.ch, 0, sizeof(s->p2.ch));
+        memset(s->p2.atu, 0, sizeof(s->p2.atu));
+    }
     if (s->backend_socket) {
         s->reset_pending = true;
         s->target_epoch = s->epoch + 1;
@@ -383,6 +404,8 @@ static void p1_config_write(PCIDevice *pdev, uint32_t address,
 }
 
 static const Property props[] = {
+    DEFINE_PROP_BOOL("p2-trace", ZCP1State, p2.trace, false),
+    DEFINE_PROP_BOOL("p2", ZCP1State, p2.enabled, false),
     DEFINE_PROP_STRING("backend-socket", ZCP1State, backend_socket),
     DEFINE_PROP_STRING("config-sha256", ZCP1State, config_sha256),
     DEFINE_PROP_UINT32("card-id", ZCP1State, card, 0),

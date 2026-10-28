@@ -1,5 +1,7 @@
 # 内部 PCIe 互联平台分阶段实现方案
 
+> 2026-10-28 P2首轮实现：已新增function绑定的Host访问服务、HDMA子集、MCU寄存器代理、原NPU外部DMA及四组合/Linux驱动联合测试。完整P2尚未关闭，后续按本地IRQ、可恢复NPU错误、inbound/文件IPC及扩展矩阵顺序推进。代码入口与同批证据见 [P2执行与验收](p2/P2执行与验收记录.md)。
+
 > 最新实现：三个BAR已对齐为64位，大小4MiB/32MiB/32GiB，前两个non-prefetchable、最后一个prefetchable。当前代码与旧实验profile不同；最新运行配置、P2准备项和证据见 [BAR对齐与P2准备](p1/P2开发前准备与BAR对齐验收.md)。下文旧大小及“尚未修改”描述仅保留为历史。
 
 > 2026-10-28 BAR补充确认：用户提供硬件为三个64位BAR，BAR0=4MiB/non-prefetchable、BAR2=32MiB/non-prefetchable、BAR4=32GiB/prefetchable。当前代码仍是原P1实验布局，硬件profile尚未修改/复验；后续调整与历史启动panic说明见 [BAR属性确认](p1/BAR硬件属性确认与接入调整.md)。

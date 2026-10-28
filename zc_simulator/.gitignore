@@ -17,3 +17,8 @@ __pycache__/
 
 # Source adaptation patch (override the repository-wide generated patch rule)
 !/p1/host-demo.patch
+
+# P2 generated integration evidence and RISC-V fixtures
+/p2/evidence/
+/p2/runtime/*.bin
+/p2/runtime/*.elf

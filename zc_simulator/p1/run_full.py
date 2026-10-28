@@ -44,6 +44,8 @@ def main():
         run('stage1',[sys.executable,HERE.parent/'stage1/run_all.py'])
         sources=list(HERE.glob('*.py'))+list(HERE.glob('*.c'))+list((HERE/'runtime').glob('*'))
         sources+=[ROOT/'qemu/hw/misc/zc-pcie-p1.c',ROOT/'qemu/hw/misc/zc-pcie-p1-session.h']
+        sources+=list((ROOT/'qemu/hw/misc').glob('zc-pcie-p2*.h'))
+        sources+=[ROOT/'simulator/riscv-isa-sim/riscv/p2_pcie.h',ROOT/'simulator/riscv-isa-sim/riscv/sim.h',ROOT/'simulator/riscv-isa-sim/riscv/sim.cc']
         sources+=list((ROOT/'simulator/tools/p1').glob('*.py'))+list((ROOT/'simulator/tools/p1').glob('*.cc'))
         sources+=[ROOT/'simulator/riscv-isa-sim/spike_main/spike.cc']
         manifest={str(p):digest(p) for p in sources if p.is_file()}
