@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""P2 first implementation gate; full P2 remains open until listed gaps close."""
+"""P2 functional integration gate; distinguish the tested profile from hardware closure."""
 import argparse
 import json
 from pathlib import Path
@@ -18,9 +18,11 @@ def main():
     work=HERE/'evidence'/f'all-{time.time_ns()}';work.mkdir(parents=True)
     result={'p2_first_implementation_pass':False,'p2_full_exit':False,
         'scope':'single-card-functional-host-dma-subset-v1',
-        'remaining':['MCU hardware local IRQ routing','per-engine recoverable NPU DMA error completion',
-                     'full inbound/iATU register semantics','Host file IPC runtime consumer/CRC/result protocol',
-                     'complete per-engine fault/reset matrix and real Tensor integration'],
+        'remaining':['confirm physical MCU IRQ ID; profile IRQ 60 is experimental',
+                     'channel-level hardware NPU error ABI; current sticky status is per hart',
+                     'non-memory iATU and advanced HDMA features outside current profile',
+                     'production toolchain file/task parsing and real Tensor numerical closure',
+                     'exhaustive per-engine disconnect/FLR/concurrent reset matrix'],
         'steps':{}}
     try:
         if not args.skip_build:
@@ -44,9 +46,11 @@ def main():
         files=list(HERE.glob('*.py'))+list(HERE.glob('*.c'))+list((HERE/'runtime').glob('*'))
         files+=list((ROOT/'qemu/hw/misc').glob('zc-pcie-p[12]*'))
         files+=list((ROOT/'simulator/tools/p1').glob('*.py'))
-        files+=[SIM/'riscv/sim.h',SIM/'riscv/sim.cc',SIM/'riscv/p2_pcie.h',SPIKE,QEMU]
+        files+=[SIM/'riscv/sim.h',SIM/'riscv/sim.cc',SIM/'riscv/p2_pcie.h',
+                SIM/'riscv/mbox.cc',SIM/'smart/sm_npu.cc',SPIKE,QEMU]
         (work/'manifest.json').write_text(json.dumps({str(p):digest(p) for p in files if p.is_file()},indent=2))
         result['p2_first_implementation_pass']=True
+        result['p2_extended_functional_pass']=True
     except BaseException as e:
         result['error']=str(e)
         raise

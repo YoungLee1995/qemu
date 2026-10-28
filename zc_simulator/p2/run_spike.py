@@ -78,7 +78,7 @@ def main():
         # Real QEMU-created sealed backing, observed for register/engine assertions only.
         fdroot=Path(f'/proc/{qemu.pid}/fd')
         for name,size in [('mailbox',4096)]:
-            fdpath=next(p for p in fdroot.iterdir() if 'zc-p1-'+name in os.readlink(p))
+            fdpath=next(p for p in fdroot.iterdir() if 'zc-p1-' in os.readlink(p) and p.stat().st_size==size)
             fd=os.open(fdpath,os.O_RDWR);maps.append(mmap.mmap(fd,size));os.close(fd)
         mb=maps[0]
         vtd=0xfed90000;root=0x10000000;ctx=root+0x1000;l4=root+0x10000;l3=l4+0x1000;l2=l3+0x1000;l1=l2+0x1000
@@ -109,32 +109,77 @@ def main():
         check('ordinary_tasks_same_spike',spawns()==initial and Path(f'/proc/{initial[0]}').exists())
         # MCU proxy sees the authoritative control1 written via Host BAR mirror.
         check('mcu_hdma_proxy_used',rd(0xe0380034)==0x202 and rd(0xe0380134)==0x202)
+        # Original host-demo register/CRC/result protocol, real MCU consumer.
+        import zlib
+        ipc=0x800000000+0x18103180
+        def file_command(trigger,addr,n,crc=0):
+            for o,v in [(0,addr&0xffffffff),(4,addr>>32),(8,n),(12,0),(20,crc),(24,0)]:wr(ipc+o,v)
+            wr(ipc+16,trigger)
+        data=bytes((i*17+3)&255 for i in range(12345))
+        memwrite(pa,data)
+        file_command(0x5a5aa5a5,iova,len(data),zlib.crc32(data))
+        check('file_crc_transfer',wait(ipc+16,0))
+        memwrite(pa+0x10000,bytes(len(data)+8))
+        file_command(0x72736c74,iova+0x10000,len(data)+8)
+        check('file_result_done',wait(pa+0x10000,0x646f6e65))
+        check('file_result_size',rd(pa+0x10004)==len(data))
+        check('file_result_payload',memread(pa+0x10008,len(data))==data)
+        check('file_result_command_retired',wait(ipc+16,0))
+        file_command(0x5a5aa5a5,iova,len(data),zlib.crc32(data)^1)
+        check('file_bad_crc_rejected',wait(ipc+16,0x80000003))
+        file_command(0x72736c74,iova+0x10000,0)
+        check('file_no_stale_result',wait(ipc+16,0x80000004))
+        file_command(0x5a5aa5a5,iova,2097145,0)
+        check('file_oversize_rejected',wait(ipc+16,0x80000001))
+        wq(l1,0);invalidate()
+        file_command(0x5a5aa5a5,iova,len(data),zlib.crc32(data))
+        check('file_iommu_fault_returned',wait(ipc+16,0x80000002))
+        wq(l1,pa|3);invalidate()
+        file_command(0x5a5aa5a5,iova,len(data),zlib.crc32(data))
+        check('file_retry_same_spike',wait(ipc+16,0) and spawns()==initial)
+        check('mcu_local_irq_handler_executed',rd(0x810000030)>0)
         # Cancel queued HDMA before requesting service QUIESCE. Nothing can
         # write Host RAM after the reset acknowledgment, including old epochs.
         for o,v in [(0,1),(0x8c,0xffffffff),(0x34,0x202),(0x1c,0x1000000),
                     (0x20,0x20010000),(0x24,0),(0x28,iova),(0x2c,0),(4,1)]:wr(0xe0380000+o,v)
+        wr(atu+0x104,0xc0000200)
         command('system_reset')
         snapshot=memread(pa,32768)
         for off,val in [(0x10,0xe0000000),(0x14,0),(0x20,0),(0x24,8),(4,6)]:config(off,val)
         check('reset_software_ready',wait(0xe0000008,1))
         check('reset_epoch_advanced',rd(0xe0000014)==1)
         check('reset_old_host_writes_stopped',memread(pa,32768)==snapshot)
-        check('reset_registers_cleared',rd(0xe0380000)==0 and rd(atu+4)==0)
+        check('reset_registers_cleared',rd(0xe0380000)==0 and rd(atu+4)==0 and rd(atu+0x104)==0)
         check('reset_one_backend_replacement',len(spawns())==len(initial)+1 and spawns()[-1]!=initial[0])
         wq(vtd+0x20,root);wr(vtd+0x18,1<<30);wr(vtd+0x18,1<<31)
         for o,v in [(0,0),(8,0),(12,dev>>32),(16,0x1ffff),(32,dev>>32),(20,iova),(24,0),(4,1<<31)]:wr(atu+o,v)
         task(1,1)
-        # Revoke the NPU output: never publish a success response after external fault.
-        wq(l1+16*8,0);invalidate()
-        before=memread(pa+0x10000,8192)
-        for o,v in [(4,1),(8,8192)]:wr(packet+o,v)
-        wr(packet,2)
-        end=time.monotonic()+10
-        while time.monotonic()<end and rd(0xe0000008):time.sleep(.01)
-        check('npu_fault_withdraws_ready',rd(0xe0000008)==0)
-        check('npu_fault_no_false_completion',rd(0x81000002c)==1)
-        check('npu_fault_no_target_write',memread(pa+0x10000,8192)==before)
-        check('npu_actual_iommu_fault',bool(rd(vtd+0x34)))
+        # Recoverable NPU faults: read, write, partial progress, mapping change.
+        for num,index,perm,status in [(2,16,0,5),(4,0,0,4),(6,17,0,5),(8,16,1,5)]:
+            wq(l1+index*8,(pa+index*4096)|perm);invalidate()
+            before=memread(pa+0x10000,8192)
+            for o,v in [(4,1),(8,8192)]:wr(packet+o,v)
+            wr(packet,num)
+            check(f'fault{num}_task_returned',wait(0x81000002c,num))
+            check(f'fault{num}_status',rd(0x810000020)==status)
+            check(f'fault{num}_ready_preserved',rd(0xe0000008)==1)
+            if index!=17:check(f'fault{num}_no_target_write',memread(pa+0x10000,8192)==before)
+            check(f'fault{num}_same_spike',len(spawns())==len(initial)+1)
+            wq(l1+index*8,(pa+index*4096)|3);invalidate()
+            task(num+1,1)
+        wq(l1,pa|1);invalidate();task(10,1)
+        check('npu_readonly_input_allowed',rd(0x810000020)==0)
+        wq(l1,pa|3);invalidate()
+        for num,kind in [(11,'bme'),(13,'outbound')]:
+            if kind=='bme':config(4,2)
+            else:wr(atu+4,0)
+            wr(packet,num)
+            check(f'npu_{kind}_fault_returned',wait(0x81000002c,num) and rd(0x810000020)==4)
+            if kind=='bme':config(4,6)
+            else:wr(atu+4,1<<31)
+            task(num+1,1)
+        check('npu_fault_matrix_same_spike',len(spawns())==len(initial)+1)
+        check('npu_actual_iommu_fault' ,bool(rd(vtd+0x34)))
         qt.close();mf.close();qm.close();passed=True
     finally:
         stop(qemu);stop(service)

@@ -68,6 +68,7 @@ echo P2_GUEST_EXIT=$?
         log=(work/'linux.log').read_text(errors='replace')
         check('no_panic','Kernel panic' not in log)
         check('four_modes_real_dma','P2_LINUX_PASS tasks=5 modes=4 coherent_iommu=1 msix=1' in log and 'P2_GUEST_EXIT=0' in log)
+        check('file_ipc_crc_result_mcu_irq','P2_FILE_IPC_PASS coherent_iova=1 crc32=1 result_bytes=12345 mcu_irq=1' in log)
         events=list(map(json.loads,(work/'service/service.jsonl').read_text().splitlines()))
         check('one_persistent_spike',len([e for e in events if e['event']=='spawn'])==1)
         check('iommu_enabled','DMAR: Intel(R) Virtualization Technology for Directed I/O' in log)

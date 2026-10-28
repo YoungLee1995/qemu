@@ -172,6 +172,11 @@ static void p1_write0(void *opaque, hwaddr addr, uint64_t value, unsigned size)
 static uint64_t p1_read2(void *opaque, hwaddr addr, unsigned size)
 {
     ZCP1State *s = opaque;
+    if (s->p2.enabled) {
+        uint32_t value;
+        p2_inbound(s, 2, addr, &value, false);
+        return value;
+    }
     if (addr + size <= 0x200000) {
         return ldl_le_p(s->ddr0 + 0x20000000 + addr);
     }
@@ -182,6 +187,11 @@ static uint64_t p1_read2(void *opaque, hwaddr addr, unsigned size)
 static void p1_write2(void *opaque, hwaddr addr, uint64_t value, unsigned size)
 {
     ZCP1State *s = opaque;
+    if (s->p2.enabled) {
+        uint32_t v = value;
+        p2_inbound(s, 2, addr, &v, true);
+        return;
+    }
     if (p1_ready(s) && addr + size <= 0x200000) {
         stl_le_p(s->ddr0 + 0x20000000 + addr, value);
     } else {
@@ -200,6 +210,14 @@ static uint64_t p1_read4(void *opaque, hwaddr addr, unsigned size)
                                            addr - SERVICE_OFFSET),
                                __ATOMIC_ACQUIRE);
     }
+    if (s->p2.enabled) {
+        uint32_t value;
+        if (addr >= 0x18103180 && addr < 0x1810319c) {
+            return p2_ipc_read(s, addr - 0x18103180);
+        }
+        p2_inbound(s, 4, addr, &value, false);
+        return value;
+    }
     s->error = 3; /* Includes unsupported host-demo transfer/HDMA commands. */
     return 0xffffffff;
 }
@@ -214,6 +232,13 @@ static void p1_write4(void *opaque, hwaddr addr, uint64_t value, unsigned size)
         /* Host owns input; backend owns completion and result. */
         p1_store((uint32_t *)(s->ddr1 + CONTROL_OFFSET +
                               addr - SERVICE_OFFSET), value);
+    } else if (s->p2.enabled) {
+        uint32_t v = value;
+        if (addr >= 0x18103180 && addr < 0x1810319c) {
+            p2_ipc_write(s, addr - 0x18103180, value);
+        } else {
+            p2_inbound(s, 4, addr, &v, true);
+        }
     } else {
         s->error = 3;
     }
@@ -376,6 +401,8 @@ static void p1_reset(DeviceState *dev)
         p2_cancel(s);
         memset(s->p2.ch, 0, sizeof(s->p2.ch));
         memset(s->p2.atu, 0, sizeof(s->p2.atu));
+        memset(s->p2.inbound, 0, sizeof(s->p2.inbound));
+        p2_irq(s);
     }
     if (s->backend_socket) {
         s->reset_pending = true;

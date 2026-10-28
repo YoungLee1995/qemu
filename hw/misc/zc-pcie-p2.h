@@ -18,7 +18,7 @@ typedef struct P2Channel {
 typedef struct P2State {
     bool enabled, trace;
     P2Channel ch[P2_CHANNELS];
-    uint32_t atu[32][9];
+    uint32_t atu[32][9], inbound[32][9];
     uint64_t requests, bytes, faults, mapping_version;
 } P2State;
 
@@ -26,3 +26,9 @@ static void p2_tick(ZCP1State *s);
 static void p2_cancel(ZCP1State *s);
 static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr);
 static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value);
+
+static bool p2_inbound(ZCP1State *s, unsigned bar, uint64_t off,
+                       uint32_t *value, bool write);
+
+static uint32_t p2_ipc_read(ZCP1State *s, unsigned off);
+static void p2_ipc_write(ZCP1State *s, unsigned off, uint32_t value);

@@ -22,9 +22,11 @@ static bool p2_translate(ZCP1State *s, uint64_t addr, uint64_t len,
     for (unsigned i = 0; i < 32; i++) {
         uint32_t *r = s->p2.atu[i];
         uint64_t base = ((uint64_t)r[3] << 32) | r[2];
-        uint64_t limit = ((uint64_t)r[8] << 32) | r[4];
+        uint64_t limit = ((uint64_t)((r[0] & (1u << 13)) ?
+                                   r[8] : r[3]) << 32) | r[4];
         uint64_t target = ((uint64_t)r[6] << 32) | r[5];
-        if ((r[1] & (1u << 31)) && r[0] == 0 &&
+        if ((r[1] & (1u << 31)) && !(r[0] & ~0x2000u) &&
+            !(r[1] & ~0x80000000u) &&
             addr >= base && addr <= limit && len - 1 <= limit - addr &&
             target <= UINT64_MAX - (addr - base) &&
             target + (addr - base) <= UINT64_MAX - (len - 1)) {
@@ -74,15 +76,29 @@ done:
     return true;
 }
 
+/*
+ * The physical MCU IRQ ID is not supplied by the IP manual. IRQ 60 is an
+ * explicit internal profile choice, shared with the integration firmware.
+ */
+static void p2_irq(ZCP1State *s)
+{
+    bool level = false;
+    for (unsigned i = 0; i < P2_CHANNELS; i++) {
+        uint32_t st = s->p2.ch[i].r[0x84 / 4];
+        uint32_t cfg = s->p2.ch[i].r[0x88 / 4];
+        level |= ((st & 1) && (cfg & (1u << 4)) && !(cfg & 1)) ||
+                 ((st & 4) && (cfg & (1u << 6)) && !(cfg & 4));
+    }
+    p1_store(s->mailbox + 0x430 / 4, 60);
+    p1_store(s->mailbox + 0x434 / 4, level);
+}
+
 static void p2_finish(ZCP1State *s, P2Channel *c, bool error)
 {
     c->busy = false;
     c->r[0x80 / 4] = 3; /* stopped */
     c->r[0x84 / 4] |= error ? 4 : 1;
-    /*
-     * Local STOP/ABORT is observable in int_stat. MCU IRQ wiring is pending;
-     * do not substitute a Host MSI-X for the local interrupt.
-     */
+    p2_irq(s);
 }
 
 static void p2_cancel_channels(ZCP1State *s)
@@ -107,6 +123,9 @@ static void p2_cancel(ZCP1State *s)
 
 static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
 {
+    if (addr >= 0x381000 && addr < 0x381080) {
+        return p1_load(s->mailbox + 0x440 / 4 + (addr - 0x381000) / 4);
+    }
     if (addr >= P2_HDMA_BASE && addr < P2_HDMA_BASE + 0x1000) {
         unsigned idx = (addr - P2_HDMA_BASE) / 0x100;
         unsigned off = (addr - P2_HDMA_BASE) % 0x100;
@@ -119,8 +138,9 @@ static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
     } else if (addr >= P2_ATU_BASE && addr < P2_ATU_BASE + 32 * 0x200) {
         unsigned idx = (addr - P2_ATU_BASE) / 0x200;
         unsigned off = (addr - P2_ATU_BASE) % 0x200;
-        if (off <= 0x20) {
-            return s->p2.atu[idx][off / 4];
+        if (off <= 0x20 || (off >= 0x100 && off <= 0x120)) {
+            return off >= 0x100 ? s->p2.inbound[idx][(off - 0x100) / 4] :
+                                 s->p2.atu[idx][off / 4];
         }
     }
     s->error = 3;
@@ -129,6 +149,13 @@ static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
 
 static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
 {
+    if (addr >= 0x381000 && addr < 0x381080) {
+        if (value == 0) {
+            p1_store(s->mailbox + 0x440 / 4 +
+                     (addr - 0x381000) / 4, 0);
+        }
+        return;
+    }
     if (addr >= P2_HDMA_BASE && addr < P2_HDMA_BASE + 0x1000) {
         unsigned idx = (addr - P2_HDMA_BASE) / 0x100;
         unsigned off = (addr - P2_HDMA_BASE) % 0x100;
@@ -165,14 +192,19 @@ static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
         } else {
             s->error = 3;
         }
+        p2_irq(s);
     } else if (addr >= P2_ATU_BASE && addr < P2_ATU_BASE + 32 * 0x200) {
         unsigned idx = (addr - P2_ATU_BASE) / 0x200;
         unsigned off = (addr - P2_ATU_BASE) % 0x200;
-        if (off <= 0x20) {
+        if (off <= 0x20 || (off >= 0x100 && off <= 0x120)) {
             /* Mapping mutation invalidates in-flight channels. */
             p2_cancel_channels(s);
             s->p2.mapping_version++;
-            s->p2.atu[idx][off / 4] = value;
+            if (off >= 0x100) {
+                s->p2.inbound[idx][(off - 0x100) / 4] = value;
+            } else {
+                s->p2.atu[idx][off / 4] = value;
+            }
         } else {
             s->error = 3;
         }
@@ -277,8 +309,18 @@ static void p2_proxy_tick(ZCP1State *s)
     addr = ((uint64_t)q[4] << 32) | q[3];
     kind = q[2];
     len = q[5];
-    if (q[1] == s->epoch && q[7] == 0 && len && len <= P2_PAYLOAD &&
-        (kind == 1 || kind == 2) &&
+    if (q[1] == s->epoch && q[7] == 0 && len == 4 && !(addr & 3) &&
+        (kind == 3 || kind == 4) && addr >= 0x18103180 && addr < 0x1810319c) {
+        unsigned off = addr - 0x18103180;
+        if (kind == 3) {
+            stl_le_p(data, p2_ipc_read(s, off));
+        } else {
+            p1_store((uint32_t *)(s->ddr1 + CONTROL_OFFSET +
+                                 0x2000 + off), ldl_le_p(data));
+        }
+        okay = true;
+    } else if (q[1] == s->epoch && q[7] == 0 && len && len <= P2_PAYLOAD &&
+        p1_ready(s) && (kind == 1 || kind == 2) &&
         addr >= 0x18000000000ULL && addr < 0x20000000000ULL &&
         len <= 0x20000000000ULL - addr &&
         p2_translate(s, addr, len, &iova)) {
@@ -296,7 +338,7 @@ static void p2_proxy_tick(ZCP1State *s)
     } else if (q[1] == s->epoch && q[7] == 0 && len == 4 &&
                !(addr & 3) && (kind == 3 || kind == 4) &&
                ((addr >= 0x21300000 && addr < 0x21304000) ||
-                (addr >= 0x21380000 && addr < 0x21381000))) {
+                (addr >= 0x21380000 && addr < 0x21381100))) {
         /* Same register state for internal DBI and diagnostic BAR mirror. */
         if (kind == 3) {
             stl_le_p(data, p2_reg_read(s, addr - 0x21000000));
@@ -312,11 +354,116 @@ static void p2_proxy_tick(ZCP1State *s)
 static void p2_tick(ZCP1State *s)
 {
     if (!p1_ready(s)) {
-        p2_cancel(s);
+        p2_cancel_channels(s);
+        if (s->reset_pending || s->software_stopped ||
+            (s->backend_socket && s->session_fd < 0)) {
+            p2_cancel(s);
+        } else {
+            /* Boot-time MCU register polling precedes ready. */
+            p2_proxy_tick(s);
+        }
         return;
     }
     p2_proxy_tick(s);
     for (unsigned i = 0; i < P2_CHANNELS; i++) {
         p2_channel_tick(s, i);
     }
+}
+
+/*
+ * DWC unrolled +0x100 inbound bank, memory address/BAR match subset.
+ * Lowest numbered matching region wins; invalid targets cannot fall through.
+ * Returns true for a claimed or rejected inbound transaction.
+ */
+static bool p2_inbound(ZCP1State *s, unsigned bar, uint64_t off,
+                       uint32_t *value, bool write)
+{
+    uint64_t address = pci_get_bar_addr(&s->parent_obj, bar);
+    if (address == PCI_BAR_UNMAPPED || off > UINT64_MAX - address) {
+        goto reject;
+    }
+    address += off;
+    for (unsigned i = 0; i < 32; i++) {
+        uint32_t *r = s->p2.inbound[i];
+        uint64_t base = ((uint64_t)r[3] << 32) | r[2];
+        uint64_t limit = ((uint64_t)((r[0] & (1u << 13)) ?
+                                   r[8] : r[3]) << 32) | r[4];
+        uint64_t target = ((uint64_t)r[6] << 32) | r[5];
+        uint64_t delta;
+        uint8_t *local;
+        if (!(r[1] & (1u << 31))) {
+            continue;
+        }
+        if ((r[1] & (1u << 19)) && ((r[0] >> 20) & 7) != 0) {
+            continue;
+        }
+        if (r[1] & (1u << 30)) {
+            if (((r[1] >> 8) & 7) != bar) {
+                continue;
+            }
+            delta = off;
+        } else {
+            if (address < base || address > limit) {
+                continue;
+            }
+            if (limit - address < 3) {
+                goto reject;
+            }
+            delta = address - base;
+        }
+        if ((r[0] & ~0x702000u) || (r[1] & ~0xc0080700u) ||
+            target > UINT64_MAX - delta || ((target + delta) & 3)) {
+            goto reject;
+        }
+        target += delta;
+        if (!p1_ready(s)) {
+            goto reject;
+        }
+        local = p2_local(s, target, 4);
+        /* Controller pages overlap the legacy DDR0 address range. */
+        if ((target >= 0x21300000 && target < 0x21304000) ||
+            (target >= 0x21380000 && target < 0x21381080)) {
+            if (write) {
+                p2_reg_write(s, target - 0x21000000, *value);
+            } else {
+                *value = p2_reg_read(s, target - 0x21000000);
+            }
+        } else if (target >= 0x18103180 && target < 0x1810319c) {
+            if (write) {
+                p2_ipc_write(s, target - 0x18103180, *value);
+            } else {
+                *value = p2_ipc_read(s, target - 0x18103180);
+            }
+        } else if (local) {
+            if (write) {
+                stl_le_p(local, *value);
+            } else {
+                *value = ldl_le_p(local);
+            }
+        } else {
+            goto reject;
+        }
+        return true;
+    }
+reject:
+    s->error = 3;
+    if (!write) {
+        *value = UINT32_MAX;
+    }
+    return true;
+}
+
+/* Host-demo IPC registers are shared with the MCU consumer. */
+static uint32_t p2_ipc_read(ZCP1State *s, unsigned off)
+{
+    return p1_load((uint32_t *)(s->ddr1 + CONTROL_OFFSET + 0x2000 + off));
+}
+static void p2_ipc_write(ZCP1State *s, unsigned off, uint32_t value)
+{
+    uint32_t trigger = p2_ipc_read(s, 0x10);
+    if (!p1_ready(s) || trigger == 0x5a5aa5a5 || trigger == 0x72736c74) {
+        s->error = 3;
+        return;
+    }
+    p1_store((uint32_t *)(s->ddr1 + CONTROL_OFFSET + 0x2000 + off), value);
 }

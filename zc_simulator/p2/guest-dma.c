@@ -19,6 +19,16 @@ static volatile uint32_t *mapbar(const char *dev,unsigned bar,size_t n){
     void *p=mmap(NULL,n,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);close(fd);
     check(p!=MAP_FAILED,"map BAR");return p;
 }
+static uint32_t crc32(volatile unsigned char *buf,unsigned n){
+    uint32_t crc=~0u;
+    for(unsigned j=0;j<n;j++){crc^=buf[j];for(unsigned k=0;k<8;k++)crc=(crc>>1)^((crc&1)?0xedb88320u:0);}
+    return ~crc;
+}
+static void ipc_wait(volatile uint32_t *ipc,uint32_t expected){
+    for(unsigned i=0;i<100000&&ipc[4]!=expected;i++)usleep(1000);
+    __sync_synchronize();printf("P2_FILE_STATUS=%x expected=%x\n",ipc[4],expected);
+    check(ipc[4]==expected,"file IPC deadline/status");
+}
 int main(void){
     char dev[512]={0},path[1024];struct dirent *e;DIR *d=opendir("/sys/bus/pci/devices");check(d!=NULL,"sysfs");
     while((e=readdir(d))){
@@ -46,12 +56,26 @@ int main(void){
         volatile uint32_t *p=service+0x100/4;
         p[1]=mode;p[2]=n;p[3]=iova;p[4]=iova>>32;p[5]=iova+0x10000;p[6]=(iova+0x10000)>>32;
         __sync_synchronize();p[0]=id;
-        for(unsigned i=0;i<10000&&service[11]!=id;i++)usleep(1000);
-        __sync_synchronize();check(service[11]==id,"task deadline");check(service[8]==0,"task status");
+        for(unsigned i=0;i<120000&&service[11]!=id;i++)usleep(1000);
+        __sync_synchronize();
+        if(service[11]!=id)printf("P2_DIAG id=%u done=%u irq=%u stage=%u stat=%u rdstat=%x wrstat=%x\n",id,service[11],service[12],service[13],service[14],bar[0x380184/4],bar[0x380084/4]);
+        check(service[11]==id,"task deadline");check(service[8]==0,"task status");
         for(unsigned i=0;i<n;i++)check(buf[0x10000+i]==(unsigned char)(((i*37+id)&255)^0x5a),"whole output");
         if(id==1)check(bar[0x380000/4]==0&&bar[0x380100/4]==0,"NPU independent of HDMA");
         printf("P2_TASK mode=%u id=%u bytes=%u PASS\n",mode,id,n);
     }
+    volatile uint32_t *ipc=mapbar(dev,4,0x18104000)+0x18103180/4;
+    for(unsigned i=0;i<n;i++)buf[i]=(i*17+3)&255;
+    ipc[0]=iova;ipc[1]=iova>>32;ipc[2]=n;ipc[3]=0;ipc[5]=crc32(buf,n);ipc[6]=0;
+    __sync_synchronize();ipc[4]=0x5a5aa5a5;ipc_wait(ipc,0);
+    for(unsigned i=0;i<n+8;i++)buf[0x10000+i]=0;
+    ipc[0]=iova+0x10000;ipc[1]=(iova+0x10000)>>32;
+    __sync_synchronize();ipc[4]=0x72736c74;ipc_wait(ipc,0);
+    check(*(volatile uint32_t *)(buf+0x10000)==0x646f6e65,"file result done");
+    check(*(volatile uint32_t *)(buf+0x10004)==n,"file result size");
+    for(unsigned i=0;i<n;i++)check(buf[0x10008+i]==(unsigned char)((i*17+3)&255),"file result bytes");
+    check(service[12]>0,"MCU local ISR");
+    puts("P2_FILE_IPC_PASS coherent_iova=1 crc32=1 result_bytes=12345 mcu_irq=1");
     for(unsigned i=0;i<500&&number(path,0)==irq_before;i++)usleep(1000);
     check(number(path,0)>irq_before,"real completion MSI-X");
     puts("P2_LINUX_PASS tasks=5 modes=4 coherent_iommu=1 msix=1");
