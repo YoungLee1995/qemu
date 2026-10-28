@@ -5,16 +5,55 @@ static uint64_t p3_mix(uint64_t hash, uint64_t value)
     return (hash ^ value) * 1099511628211ULL;
 }
 
-/* Pin requests to the fabric configuration present at submission. */
-static uint64_t p3_signature(void)
+/*
+ * Direct HDMA pins its remote address; NPU pins its source outbound regions.
+ * Linked descriptor chains retain the conservative P3 fabric-wide policy.
+ */
+static bool p4_depends(ZCP1State *source, ZCP1State *target, int channel)
 {
-    uint64_t hash = p3_mix(1469598103934665603ULL, p3_fabric_generation);
+    uint64_t bar = pci_get_bar_addr(&target->parent_obj, 4);
+    if (source == target) {
+        return true;
+    }
+    if (bar == PCI_BAR_UNMAPPED) {
+        return false;
+    }
+    if (channel >= 0) {
+        uint64_t addr = source->p2.ch[channel].route_addr;
+        return addr >= bar && addr - bar < 0x800000000ULL;
+    }
+    for (unsigned i = 0; i < 32; i++) {
+        uint32_t *r = source->p2.atu[i];
+        uint64_t base = ((uint64_t)r[3] << 32) | r[2];
+        uint64_t limit = ((uint64_t)((r[0] & 0x2000) ?
+                                    r[8] : r[3]) << 32) | r[4];
+        uint64_t dst = ((uint64_t)r[6] << 32) | r[5];
+        if ((r[1] & 0x80000000u) && limit >= base &&
+            dst <= UINT64_MAX - (limit - base) &&
+            dst <= bar + 0x7ffffffffULL && dst + limit - base >= bar) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Pin requests to the fabric configuration present at submission. */
+static uint64_t p3_signature(ZCP1State *source, int channel)
+{
+    bool scoped = source->p4_isolation &&
+                  !(channel >= 0 && source->p2.ch[channel].linked);
+    uint64_t hash = p3_mix(1469598103934665603ULL,
+                           scoped ? 0 : p3_fabric_generation);
     for (GSList *it = p3_endpoints; it; it = it->next) {
         ZCP1State *t = it->data;
         PCIDevice *d = &t->parent_obj;
-        if (!t->p3) {
+        if (!t->p3 || (scoped && !p4_depends(source, t, channel))) {
             continue;
         }
+        if (scoped) {
+            hash = p3_mix(hash, t->p4_map_generation);
+        }
+        hash = p3_mix(hash, t->card);
         hash = p3_mix(hash, t->p3_allow);
         hash = p3_mix(hash, t->session);
         hash = p3_mix(hash, t->epoch);

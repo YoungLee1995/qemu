@@ -65,17 +65,17 @@ static bool p2_host(ZCP1State *s, uint64_t iova, void *buf, size_t len,
         goto done;
     }
     if (s->p3 && channel >= 0 &&
-        s->p2.ch[channel].route_signature != p3_signature()) {
+        s->p2.ch[channel].route_signature != p3_signature(s, channel)) {
         goto done;
     }
     if (s->p3 && channel < 0) {
         uint64_t task = p1_load(control(s) + 64);
         if (!s->proxy_pinned || s->proxy_task != task) {
             s->proxy_task = task;
-            s->proxy_signature = p3_signature();
+            s->proxy_signature = p3_signature(s, -1);
             s->proxy_pinned = true;
         }
-        if (s->proxy_signature != p3_signature()) {
+        if (s->proxy_signature != p3_signature(s, -1)) {
             goto done;
         }
     }
@@ -97,7 +97,8 @@ done:
                         "\"peer_mapping_version\":%" PRIu64 ","
                         "\"route_signature\":%" PRIu64 ",\"memtx\":%u}\n",
                         s->card, s->p2.requests, t->card, t->session, t->epoch,
-                        t->p2.mapping_version, p3_signature(), result);
+                        t->p2.mapping_version,
+                        p3_signature(s, channel), result);
             }
         }
     }
@@ -249,11 +250,18 @@ static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
                 return;
             }
             c->parent = ++s->p2.parents;
-            c->route_signature = s->p3 ? p3_signature() : 0;
             c->linked = c->r[0x34 / 4] & 1;
             c->desc = ((uint64_t)c->r[5] << 32) | c->r[4];
             c->src = ((uint64_t)c->r[9] << 32) | c->r[8];
             c->dst = ((uint64_t)c->r[11] << 32) | c->r[10];
+            c->route_addr = (idx & 1) ? c->src : c->dst;
+            if (!(c->r[0x34 / 4] & 0x200) && !c->linked) {
+                uint64_t translated;
+                if (p2_translate(s, c->route_addr, c->r[7], &translated)) {
+                    c->route_addr = translated;
+                }
+            }
+            c->route_signature = s->p3 ? p3_signature(s, idx) : 0;
             c->remaining = c->linked ? 0 : c->r[7];
             c->elements = c->desc_control = 0;
             c->busy = true;
@@ -304,7 +312,7 @@ static void p2_channel_tick(ZCP1State *s, unsigned idx)
         p2_finish(s, c, true);
         return;
     }
-    if (s->p3 && c->route_signature != p3_signature()) {
+    if (s->p3 && c->route_signature != p3_signature(s, idx)) {
         p2_finish(s, c, true);
         return;
     }
@@ -396,10 +404,10 @@ static void p2_proxy_tick(ZCP1State *s)
         uint64_t task = p1_load(control(s) + 64);
         if (!s->proxy_pinned || s->proxy_task != task) {
             s->proxy_task = task;
-            s->proxy_signature = p3_signature();
+            s->proxy_signature = p3_signature(s, -1);
             s->proxy_pinned = true;
         }
-        if (s->proxy_signature != p3_signature()) {
+        if (s->proxy_signature != p3_signature(s, -1)) {
             q[6] = 1;
             p1_store(q, 2);
             return;

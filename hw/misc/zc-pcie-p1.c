@@ -39,7 +39,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(ZCP1State, ZC_PCIE_P1)
 struct ZCP1State {
     PCIDevice parent_obj;
     P2State p2;
-    bool p3, p3_allow;
+    bool p3, p3_allow, p4_isolation;
+    uint64_t p4_map_generation;
     uint64_t peer_base, peer_size;
     uint64_t proxy_task, proxy_signature;
     bool proxy_pinned;
@@ -69,9 +70,24 @@ static void p3_map_commit(MemoryListener *listener)
     p3_fabric_generation++;
 }
 
+/* Attribute flat-map changes to the endpoints whose BAR decode changed. */
+static void p4_map_change(MemoryListener *listener,
+                          MemoryRegionSection *section)
+{
+    for (GSList *it = p3_endpoints; it; it = it->next) {
+        ZCP1State *s = it->data;
+        if (section->mr == &s->bar0 || section->mr == &s->bar2 ||
+            section->mr == &s->bar4) {
+            s->p4_map_generation++;
+        }
+    }
+}
+
 static MemoryListener p3_map_listener = {
     .name = "zc-p3-fabric",
     .commit = p3_map_commit,
+    .region_add = p4_map_change,
+    .region_del = p4_map_change,
 };
 
 #include "zc-pcie-p1-session.h"
@@ -295,6 +311,10 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
 {
     ZCP1State *s = ZC_PCIE_P1(pdev);
     s->session_fd = -1;
+    if (s->p4_isolation && !s->p3) {
+        error_setg(errp, "P4 isolation requires P3");
+        return;
+    }
     if (s->p3 && (!s->p2.enabled || !s->peer_size ||
         s->peer_base > UINT64_MAX - (s->peer_size - 1))) {
         error_setg(errp, "P3 requires P2 and a nonempty, "
@@ -480,6 +500,7 @@ static void p1_config_write(PCIDevice *pdev, uint32_t address,
 }
 
 static const Property props[] = {
+    DEFINE_PROP_BOOL("p4-isolation", ZCP1State, p4_isolation, false),
     DEFINE_PROP_BOOL("p3", ZCP1State, p3, false),
     DEFINE_PROP_BOOL("p3-allow", ZCP1State, p3_allow, true),
     DEFINE_PROP_UINT64("peer-base", ZCP1State, peer_base, 0x1000000000ULL),

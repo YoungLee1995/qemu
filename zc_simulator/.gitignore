@@ -25,3 +25,6 @@ __pycache__/
 
 # P3 generated dual-card integration evidence
 /p3/evidence/
+
+# P4 generated platform, guest builds and multi-card integration evidence
+/p4/evidence/
