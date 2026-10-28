@@ -102,6 +102,7 @@ int main(void) {
         check(c[7]==cases[k][0]&&c[8]==cases[k][5],"response id/status");
         if(!cases[k][5]&&cases[k][3]) {
             executed++;
+            check(c[12]==0x1234abcd && c[13]==0x1234abcd,"MCU and NPU see Host DDR0 write");
             check(c[10]==33792,"result length");
             for(unsigned i=0;i<8448;i++) check(c[0x1000/4+i]==golden[i],"full Tensor output");
         }

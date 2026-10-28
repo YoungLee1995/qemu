@@ -1,5 +1,7 @@
 # P0 阶段准入评估与 P 阶段开发方案
 
+> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](p1/P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
+
 > 2026-10-27 P1 实施更新：已完成 P1-A 单卡共享 DDR/mailbox、软件 ready、三次真实 Tensor、Host demo probe/mmap/MSI-X 及基础 reset 的运行验收。原 P1-02 socket 会话/通用服务仍待 P1-B，完整 P1 尚未关闭。最新实现、开发步骤与证据见 [P1 执行记录](p1/P1执行与验收记录.md) 和 [运行入口](p1/README.md)。下文 P0 调查中的“待 P1 实现”保留为历史阶段描述。
 
 > 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](p0/Host-demo接入影响评估.md)。

@@ -8,6 +8,11 @@
 #include "qemu/bswap.h"
 #include "qemu/module.h"
 #include "qemu/timer.h"
+#include "qemu/error-report.h"
+#include "qemu/memfd.h"
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <sys/random.h>
 #include "hw/core/qdev-properties.h"
 #include "hw/pci/pci_device.h"
 #include "hw/pci/pcie.h"
@@ -34,7 +39,17 @@ struct ZCP1State {
     uint32_t *mailbox;
     uint32_t last_done, notifications, error, epoch;
     bool active, initialized;
+    char *backend_socket, *config_sha256;
+    uint8_t config_digest[32];
+    uint32_t card, timeout_ms, target_epoch;
+    int session_fd;
+    uint64_t session, request;
+    int64_t deadline, heartbeat_at, retry_at;
+    uint16_t pending_type;
+    bool session_ready, reset_pending, software_stopped, session_started;
 };
+
+#include "zc-pcie-p1-session.h"
 
 static uint32_t p1_load(uint32_t *p)
 {
@@ -54,7 +69,7 @@ static uint32_t *control(ZCP1State *s)
 static bool p1_ready(ZCP1State *s)
 {
     uint32_t *c = control(s);
-    return s->active &&
+    return s->active && (!s->backend_socket || s->session_ready) &&
            p1_load(s->mailbox + 0x404 / 4) == s->epoch &&
            p1_load(s->mailbox + 0x408 / 4) == 1 &&
            p1_load(c + 4) == 1 && p1_load(c + 5) == 1;
@@ -63,8 +78,14 @@ static bool p1_ready(ZCP1State *s)
 static void p1_tick(void *opaque)
 {
     ZCP1State *s = opaque;
-    uint32_t done = p1_load(control(s) + 11);
-    s->active = p1_load(s->mailbox + 0x404 / 4) == s->epoch &&
+    uint32_t done;
+    if (s->backend_socket) {
+        p1_session_poll(s);
+    }
+    done = p1_load(control(s) + 11);
+    s->active = (!s->backend_socket ||
+                 (s->session_ready && !s->reset_pending)) &&
+                p1_load(s->mailbox + 0x404 / 4) == s->epoch &&
                 p1_load(s->mailbox + 0x408 / 4) == 1;
     if (p1_ready(s) && done && done != s->last_done) {
         s->last_done = done;
@@ -210,10 +231,47 @@ static void *p1_map(int fd, size_t size, Error **errp)
 static void p1_realize(PCIDevice *pdev, Error **errp)
 {
     ZCP1State *s = ZC_PCIE_P1(pdev);
+    s->session_fd = -1;
+    if (s->backend_socket) {
+        if (s->ddr0_fd >= 0 || s->ddr1_fd >= 0 || s->mailbox_fd >= 0 ||
+            !s->config_sha256 || strlen(s->config_sha256) != 64 ||
+            s->timeout_ms < 100 || s->timeout_ms > 60000) {
+            error_setg(errp, "P1 socket needs digest/timeout and "
+                       "no inherited FDs");
+            return;
+        }
+        for (unsigned i = 0; i < 32; i++) {
+            int a = g_ascii_xdigit_value(s->config_sha256[2 * i]);
+            int b = g_ascii_xdigit_value(s->config_sha256[2 * i + 1]);
+            if (a < 0 || b < 0) {
+                error_setg(errp, "P1 invalid configuration SHA256");
+                return;
+            }
+            s->config_digest[i] = a * 16 + b;
+        }
+        s->ddr0_fd = qemu_memfd_create("zc-p1-ddr0", DDR0_SIZE, false, 0,
+            F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL, errp);
+        if (s->ddr0_fd < 0) {
+            return;
+        }
+        s->ddr1_fd = qemu_memfd_create("zc-p1-ddr1", DDR1_SIZE, false, 0,
+            F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL, errp);
+        if (s->ddr1_fd < 0) {
+            close(s->ddr0_fd);
+            return;
+        }
+        s->mailbox_fd = qemu_memfd_create("zc-p1-mailbox", 4096, false, 0,
+            F_SEAL_GROW | F_SEAL_SHRINK | F_SEAL_SEAL, errp);
+        if (s->mailbox_fd < 0) {
+            close(s->ddr1_fd);
+            close(s->ddr0_fd);
+            return;
+        }
+    }
     if (!HOST_BIG_ENDIAN && __atomic_always_lock_free(4, NULL)) {
         s->ddr0 = p1_map(s->ddr0_fd, DDR0_SIZE, errp);
         if (!s->ddr0) {
-            return;
+            goto failfds;
         }
         s->ddr1 = p1_map(s->ddr1_fd, DDR1_SIZE, errp);
         if (!s->ddr1) {
@@ -225,7 +283,7 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
         }
     } else {
         error_setg(errp, "P1 requires little-endian host with lock-free u32");
-        return;
+        goto failfds;
     }
     if (pcie_endpoint_cap_init(pdev, 0x80) < 0) {
         error_setg(errp, "cannot initialize P1 PCIe capability");
@@ -260,17 +318,31 @@ fail1:
     munmap(s->ddr1, DDR1_SIZE);
 fail0:
     munmap(s->ddr0, DDR0_SIZE);
+failfds:
+    if (s->backend_socket) {
+        close(s->mailbox_fd);
+        close(s->ddr1_fd);
+        close(s->ddr0_fd);
+    }
 }
 
 static void p1_exit(PCIDevice *pdev)
 {
     ZCP1State *s = ZC_PCIE_P1(pdev);
     timer_free(s->timer);
+    if (s->session_fd >= 0) {
+        close(s->session_fd); /* Service reaps backend on EOF. */
+    }
     msix_uninit(pdev, &s->bar0, &s->bar0);
     pcie_cap_exit(pdev);
     munmap(s->mailbox, 4096);
     munmap(s->ddr1, DDR1_SIZE);
     munmap(s->ddr0, DDR0_SIZE);
+    if (s->backend_socket) {
+        close(s->mailbox_fd);
+        close(s->ddr1_fd);
+        close(s->ddr0_fd);
+    }
 }
 
 static void p1_reset(DeviceState *dev)
@@ -282,6 +354,19 @@ static void p1_reset(DeviceState *dev)
     }
     /* Reset blocks new writes until launcher has reaped/restarted backend. */
     s->active = false;
+    if (s->backend_socket) {
+        s->reset_pending = true;
+        s->target_epoch = s->epoch + 1;
+        msix_reset(&s->parent_obj);
+        s->last_done = s->notifications = 0;
+        if (s->session_fd >= 0 && s->session_ready && !s->pending_type) {
+            p1_session_send(s, P1_QUIESCE, NULL, 0, false);
+        } else {
+            p1_session_fail(s, "reset during negotiation");
+            s->epoch = s->target_epoch;
+        }
+        return;
+    }
     s->epoch++;
     s->last_done = s->notifications = s->error = 0;
     msix_reset(&s->parent_obj);
@@ -296,6 +381,10 @@ static void p1_config_write(PCIDevice *pdev, uint32_t address,
 }
 
 static const Property props[] = {
+    DEFINE_PROP_STRING("backend-socket", ZCP1State, backend_socket),
+    DEFINE_PROP_STRING("config-sha256", ZCP1State, config_sha256),
+    DEFINE_PROP_UINT32("card-id", ZCP1State, card, 0),
+    DEFINE_PROP_UINT32("session-timeout-ms", ZCP1State, timeout_ms, 30000),
     DEFINE_PROP_INT32("ddr0-fd", ZCP1State, ddr0_fd, -1),
     DEFINE_PROP_INT32("ddr1-fd", ZCP1State, ddr1_fd, -1),
     DEFINE_PROP_INT32("mailbox-fd", ZCP1State, mailbox_fd, -1),

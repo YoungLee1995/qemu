@@ -57,7 +57,7 @@ class Backing:
         self.maps[2][:]=bytes(4096)
         self.maps[2][0x400:0x40c]=struct.pack('<III',self.epoch,self.epoch,0)
         self.maps[1][CONTROL:CONTROL+65536]=bytes(65536)
-    def start(self,work,ready_timeout=20):
+    def prepare(self,work):
         work.mkdir(parents=True,exist_ok=True)
         for name in ('mcu.bin','npu.bin'): shutil.copy2(HERE/'runtime'/name,work/name)
         shutil.copytree(ROOT/'moe_bf16_sint4_33x29x34_fix/data',work/'data',dirs_exist_ok=True)
@@ -74,6 +74,8 @@ l1buf_input_num:4
 [0x10009000, ./data/moe_index_l1.bin]
 l1buf_output_num:0
 ''')
+    def start(self,work,ready_timeout=20):
+        self.prepare(work)
         log=(work/'spike.log').open('w')
         cmd=[str(SPIKE),f'--p1-ddr0-fd={self.fds[0]}',f'--p1-ddr1-fd={self.fds[1]}',
              f'--isa={ISA}','--runtime-func',str(FIRMWARE),'-cfg',str(work/'firmware.cfg')]
@@ -181,6 +183,7 @@ echo GUEST_RESULT=$?
         backing=Backing();backing.initialize();backend=backing.start(work/'linux-simu')
         cmd=[str(QEMU),'-machine','q35','-accel','tcg','-m','512M','-smp','1','-nodefaults',
              '-display','none','-serial','stdio','-monitor','none','-no-reboot',
+             '-icount','shift=3,align=off,sleep=off',
              '-kernel',str(kernel),'-initrd',str(initrd),
              '-append','console=ttyS0 rdinit=/init intel_iommu=on iommu.strict=1 panic=-1',
              '-device','intel-iommu,intremap=on,caching-mode=on',

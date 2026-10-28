@@ -1,5 +1,7 @@
 # P1 单卡共享内存接入实验
 
+> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
+
 2026-10-27。当前已实现并验证 **P1-A：共享 DDR + Host mailbox + 软件 ready + 连续真实 Tensor 任务 + MSI-X + 基础复位**。完整 P1 尚未关闭：原设计的 socket 会话/能力协商、通用控制服务和协议错误矩阵仍待 P1-B。状态和运行证据见 [P1 执行与验收记录](P1执行与验收记录.md)。
 
 ## 运行
@@ -80,3 +82,20 @@ mailbox 共享页 `+0x400` 为请求 epoch、`+0x404` 为 launcher 确认 epoch�
 P1-B 要补：通用会话/能力与配置摘要协商、card/session/request 身份、FD 传输/校验、非阻塞模型消息泵、断连及协议错误矩阵、可持续运行的 reset/restart 服务。接口不兼容必须明确拒绝；不因当前使用继承 FD 而静默删除原 P1-02 要求。P1-A 的共享存储与模型线程归属可继续复用。
 
 P2 再实现 Host file IPC、HDMA、iATU/ATE、function DMA AddressSpace/IOVA 访问和 NPU 外部 DMA。现有 Host demo 的 `list-devices`、coherent mmap 与 MSI-X 已验证；`fw-load/img-load/file-load/get-result` 不属于本次通过项。Host IOMMU 已启用且设备有 group，并不表示 EP 已完成 DMA/IOMMU 权限验收。八卡、P2P、热拔插、迁移和性能精度均不在本轮范围。
+
+
+## 完整 P1 新入口（2026-10-28）
+
+```bash
+python3 qemu/zc_simulator/p1/run_full.py
+```
+
+完整出口通过socket常驻服务验收，原`run_p1.py`只保留为P1-A子项。`run_full.py`生成`full-*`结果，任一组失败即保持`p1_full_exit=false`。固定Linux运行配置使用`-icount shift=3,align=off,sleep=off`，细节与适用边界见[P1闭环记录](P1闭环验收记录.md)。
+
+单独运行服务时，使用full运行中生成的`session-*/backend.json`（其中路径和内容必须保持有效）：
+
+```bash
+python3 simulator/tools/p1/service.py --socket /tmp/zc-card0.sock --config /absolute/path/backend.json --work /absolute/path/service-logs
+```
+
+QEMU改用`-device zc-pcie-p1,backend-socket=/tmp/zc-card0.sock,config-sha256=<配置JSON的SHA256>,card-id=0`，无需向QEMU传DDR FD。QEMU自己创建并封口内存，协商后交付服务。详细服务/协议状态见[simulator服务说明](../../../simulator/tools/p1/README.md)。

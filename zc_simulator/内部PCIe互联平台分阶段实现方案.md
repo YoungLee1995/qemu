@@ -1,5 +1,7 @@
 # 内部 PCIe 互联平台分阶段实现方案
 
+> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](p1/P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
+
 > 2026-10-27 实施进度：P0 基线/设计已完成，P1-A 单卡共享内存接入已运行通过：Host → BAR/mailbox → MCU/NPU 原 Tensor → 共享结果，并验证 Host demo 驱动/应用发现、coherent mmap、MSI-X 和空闲 reset。完整 P1 仍需 P1-B 会话协议及通用恢复服务；P2 外部 DMA 未实现。详见 [P1 运行与验收](p1/P1执行与验收记录.md)，其中第 5 节列出剩余开发顺序。
 
 > 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](p0/Host-demo接入影响评估.md)。

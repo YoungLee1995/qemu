@@ -34,6 +34,7 @@ int main(void) {
     else if (!id || id == 0xffffffffU || id <= last) status = 4;
     mbox[0] = 1; /* consume host pending, W1C */
     if (!status && kind == 1) {
+      shared[12] = *(volatile uint32_t *)0x401ff000UL;
       ++submitted;
       shared[0] = id; barrier();
       mbox[(2*0x68+8)/4] = id;
@@ -68,6 +69,7 @@ int main(void) {
     volatile uint64_t *local = (void *)0x10009200UL;
     volatile uint64_t *copy = (void *)COPY;
     for (unsigned i=0; i<BYTES/8; ++i) local[i] = 0;
+    shared[13] = *(volatile uint32_t *)0x401ff000UL;
     execute_tensor((const void *)(PACKET+32));
     for (unsigned i=0; i<BYTES/8; ++i) copy[i] = local[i];
     last = id; shared[2] += 1;
