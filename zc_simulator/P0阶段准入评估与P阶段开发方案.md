@@ -1,5 +1,7 @@
 # P0 阶段准入评估与 P 阶段开发方案
 
+> 2026-10-27 P1 实施更新：已完成 P1-A 单卡共享 DDR/mailbox、软件 ready、三次真实 Tensor、Host demo probe/mmap/MSI-X 及基础 reset 的运行验收。原 P1-02 socket 会话/通用服务仍待 P1-B，完整 P1 尚未关闭。最新实现、开发步骤与证据见 [P1 执行记录](p1/P1执行与验收记录.md) 和 [运行入口](p1/README.md)。下文 P0 调查中的“待 P1 实现”保留为历史阶段描述。
+
 > 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](p0/Host-demo接入影响评估.md)。
 
 日期：2026-10-27。范围：内部功能联合仿真。依据：[项目架构](PCIE%20Switch集群功能仿真器.md)、[总体分阶段方案](内部PCIe互联平台分阶段实现方案.md)、[单 die 调试指南](单die信息包执行闭环实施指南.md)、[首轮执行记录](单die信息包闭环首轮执行报告.md)，以及当前工作区代码和本轮回归。本文保留准入调查及后续计划，并按用户最新澄清收敛 P0：simu 内部 runtime 已与硬件对齐，直接复用；PCIe 参考以现有 Zebu demo/寄存器手册为准。P0 基线与适配设计已完成，进入 P1；不表示 PCIe 全功能已实现。最新结论见第 11 节。

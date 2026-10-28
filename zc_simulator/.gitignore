@@ -9,3 +9,11 @@
 *.tmp
 __pycache__/
 *.py[cod]
+
+# P1 generated builds, memory/IPC and integration results
+/p1/evidence/
+/p1/runtime/*.bin
+/p1/runtime/*.elf
+
+# Source adaptation patch (override the repository-wide generated patch rule)
+!/p1/host-demo.patch

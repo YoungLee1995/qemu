@@ -1,0 +1,162 @@
+--- a/ssv_test_driver.c
++++ b/ssv_test_driver.c
+@@ -47,6 +47,7 @@
+     dma_addr_t  dma_handle;
+     size_t      dma_size;
+ 
++    atomic64_t irq_count;
+     int         num_vectors;
+     struct msix_entry msix_entries[MAX_MSIX_VECTORS];
+ 
+@@ -68,7 +69,10 @@
+ 
+ static irqreturn_t ssv_msix_handler(int irq, void *dev_id)
+ {
+-    dev_info(dev_id, "MSI-X interrupt (IRQ %d)\n", irq);
++    struct pci_dev *pdev = dev_id;
++    struct per_dev *sd = pci_get_drvdata(pdev);
++    atomic64_inc(&sd->irq_count);
++    dev_info(&pdev->dev, "MSI-X interrupt (IRQ %d)\n", irq);
+     return IRQ_HANDLED;
+ }
+ 
+@@ -94,6 +98,13 @@
+     return scnprintf(buf, PAGE_SIZE, "%zu\n", (size_t)sd->dma_size);
+ }
+ 
++static ssize_t irq_count_show(struct device *dev,
++                              struct device_attribute *attr, char *buf)
++{
++    struct per_dev *sd = pci_get_drvdata(to_pci_dev(dev));
++    return scnprintf(buf, PAGE_SIZE, "%lld\n", atomic64_read(&sd->irq_count));
++}
++static DEVICE_ATTR_RO(irq_count);
+ static DEVICE_ATTR_RO(phys_addr);
+ static DEVICE_ATTR_RO(buf_size);
+ 
+@@ -205,6 +216,8 @@
+         nirqs++;
+     }
+ 
++    device_create_file(&pdev->dev, &dev_attr_irq_count);
++
+     /* sysfs: create custom attributes on the already-registered PCI device */
+     ret = device_create_file(&pdev->dev, &dev_attr_phys_addr);
+     if (ret)
+@@ -250,6 +263,7 @@
+     cdev_del(&sd->cdev);
+     atomic_dec(&next_minor);
+ err_sysfs:
++    device_remove_file(&pdev->dev, &dev_attr_irq_count);
+     device_remove_file(&pdev->dev, &dev_attr_phys_addr);
+     device_remove_file(&pdev->dev, &dev_attr_buf_size);
+ err_irq:
+@@ -284,6 +298,7 @@
+     cdev_del(&sd->cdev);
+     atomic_dec(&next_minor);
+ 
++    device_remove_file(&pdev->dev, &dev_attr_irq_count);
+     device_remove_file(&pdev->dev, &dev_attr_phys_addr);
+     device_remove_file(&pdev->dev, &dev_attr_buf_size);
+ 
+@@ -324,7 +339,7 @@
+ {
+     int ret;
+ 
+-    dma_class = class_create(THIS_MODULE, CLASS_NAME);
++    dma_class = class_create(CLASS_NAME);
+     if (IS_ERR(dma_class))
+         return PTR_ERR(dma_class);
+ 
+--- a/ssv_test_app.c
++++ b/ssv_test_app.c
+@@ -37,6 +37,7 @@
+ #include <sys/mman.h>
+ #include <sys/stat.h>
+ #include <errno.h>
++#include <dirent.h>
+ 
+ /* ------------------------------------------------------------------ */
+ /* Constants                                                          */
+@@ -392,16 +393,18 @@
+     char bdf[16];
+     char line[128];
+     int minor;
+-    FILE *pipe;
++    DIR *directory;
++    struct dirent *item;
+ 
+     ep_count = 0;
+-    pipe = popen("ls /sys/class/test_dma/", "r");
+-    if (!pipe) {
+-        perror("popen ls /sys/class/test_dma");
+-        return -1;
+-    }
+-
+-    while (ep_count < MAX_EPS && fgets(line, sizeof(line), pipe)) {
++    directory = opendir("/sys/class/test_dma");
++    if (!directory) {
++        perror("opendir /sys/class/test_dma");
++        return -1;
++    }
++
++    while (ep_count < MAX_EPS && (item = readdir(directory))) {
++        snprintf(line, sizeof(line), "%s", item->d_name);
+         /* Strip newline */
+         char *nl = strchr(line, '\n');
+         if (nl) *nl = '\0';
+@@ -442,7 +445,7 @@
+         init_ep_slot(&ep_list[ep_count], bdf, line, minor, ep_count);
+         ep_count++;
+     }
+-    pclose(pipe);
++    closedir(directory);
+ 
+     /* Sort by minor for deterministic ordering */
+     for (int i = 1; i < ep_count; i++) {
+@@ -468,14 +471,16 @@
+     char vbuf[32], dbuf[32];
+     char line[64];
+     int minor = 0;
+-    FILE *pipe;
++    DIR *directory;
++    struct dirent *item;
+ 
+     ep_count = 0;
+-    pipe = popen("ls /sys/bus/pci/devices/", "r");
+-    if (!pipe)
+-        return -1;
+-
+-    while (ep_count < MAX_EPS && fgets(line, sizeof(line), pipe)) {
++    directory = opendir("/sys/bus/pci/devices");
++    if (!directory)
++        return -1;
++
++    while (ep_count < MAX_EPS && (item = readdir(directory))) {
++        snprintf(line, sizeof(line), "%s", item->d_name);
+         char *nl = strchr(line, '\n');
+         if (nl) *nl = '\0';
+         if (line[0] == '\0')
+@@ -505,7 +510,7 @@
+         ep_count++;
+         minor++;
+     }
+-    pclose(pipe);
++    closedir(directory);
+     return ep_count;
+ }
+ 
+@@ -729,12 +734,7 @@
+         ep_close_bar2(ep);
+         return -1;
+     }
+-    if (ep_alloc_result(ep) != 0) {
+-        ep_close_dma(ep);
+-        ep_close_bar4(ep);
+-        ep_close_bar2(ep);
+-        return -1;
+-    }
++    /* P1: get-result already uses coherent DMA; no unused hugepage dependency. */
+     ep->active = 1;
+     return 0;
+ }
