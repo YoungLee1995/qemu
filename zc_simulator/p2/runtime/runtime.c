@@ -85,15 +85,17 @@ int main(void){
         fence();last=id;
         uint64_t src=((uint64_t)c[68]<<32)|c[67];
         uint64_t dst=((uint64_t)c[70]<<32)|c[69];
+        unsigned tensor=c[71],out_n=tensor?33792:n;
         unsigned status=0;
-        if(mode<1||mode>4||!n||n>32768)status=1;
+        if(mode<1||mode>4||!n||n>65536||tensor>1||
+           (tensor&&n!=0x9200))status=1;
         if(!status&&(mode==2||mode==3)&&!hdma(1,src,INPUT,n))status=2;
         if(!status){
             c[0]=id;fence();
             while(c[1]!=id)asm volatile("nop");
             fence();
             status=c[9];
-            if(!status&&(mode==2||mode==4)&&!hdma(0,OUTPUT,dst,n))status=3;
+            if(!status&&(mode==2||mode==4)&&!hdma(0,OUTPUT,dst,out_n))status=3;
         }
         c[8]=status;c[7]=id;fence();c[11]=id;
     }
@@ -101,6 +103,7 @@ int main(void){
 #else
 extern void dma_load(const void *);
 extern void dma_store(const void *);
+extern void execute_tensor(const void *);
 static void descriptor(uint64_t *d,uint64_t addr,unsigned n){
     for(unsigned i=0;i<16;i++)d[i]=0;
     d[1]=addr-DDR; /* existing relative-address descriptor mode */
@@ -113,15 +116,24 @@ int main(void){
     fence();c[5]=1;
     for(;;){
         unsigned id=c[0];if(!id||id==last)continue;
-        fence();unsigned mode=c[65],n=c[66];
+        fence();unsigned mode=c[65],n=c[66],tensor=c[71];
         volatile uint32_t *error=(void *)(0x21381000UL+16*4);
         *error=0;
         descriptor(d,(mode==1||mode==4)?EXTERNAL:INPUT,n);
+        if(tensor)d[2]=0;
         dma_load(d); /* original queue, DMA engine and enhanced fence */
         if(*error){c[9]=4;fence();last=id;c[1]=id;continue;}
-        volatile unsigned char *p=(void *)0x10100000UL;
-        for(unsigned i=0;i<n;i++)p[i]^=0x5a;
+        if(tensor){
+            volatile uint64_t *out=(void *)0x10009200UL;
+            for(unsigned i=0;i<33792/8;i++)out[i]=0;
+            execute_tensor((const void *)(SHARED+0x180));
+            n=33792;
+        }else{
+            volatile unsigned char *p=(void *)0x10100000UL;
+            for(unsigned i=0;i<n;i++)p[i]^=0x5a;
+        }
         descriptor(d,(mode==1||mode==3)?EXTERNAL+0x10000:OUTPUT,n);
+        if(tensor)d[2]=0x9200;
         dma_store(d);
         c[9]=*error?5:0;fence();last=id;c[1]=id;
     }

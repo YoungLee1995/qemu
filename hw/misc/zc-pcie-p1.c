@@ -10,6 +10,7 @@
 #include "qemu/timer.h"
 #include "qemu/error-report.h"
 #include "qemu/memfd.h"
+#include "system/qtest.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/random.h>

@@ -180,12 +180,89 @@ def main():
             task(num+1,1)
         check('npu_fault_matrix_same_spike',len(spawns())==len(initial)+1)
         check('npu_actual_iommu_fault' ,bool(rd(vtd+0x34)))
+        # Existing Tensor operands + captured descriptors transported over PCIe.
+        # Compare with the pinned standalone result; do not call this a new math golden.
+        payload=bytearray(0x9200)
+        for offset,name in [(0,'act_l1.bin'),(0x8400,'wgt_l1.bin'),
+                            (0x8a00,'wgt_scale_l1.bin'),(0x9000,'moe_index_l1.bin')]:
+            raw=(ROOT/'moe_bf16_sint4_33x29x34_fix/data'/name).read_bytes()
+            payload[offset:offset+len(raw)]=raw
+        args=(ROOT/'simulator/riscv-tests/packet_runtime_test/tensor-args.bin').read_bytes()
+        reference=ROOT/'experiments/single_die_packet/run-20261027T100512-648188Z/moe/data/result_l1_spike.bin'
+        expected=reference.read_bytes()
+        check('tensor_reference_pin',hashlib.sha256(expected).hexdigest()=='37121ee2cd6afaed02f18587ed683d6fb5d5c4a6cd3b078f682a77891fe7e015')
+        for number,mode in [(15,1),(16,2),(17,3),(18,4)]:
+            memwrite(pa,payload);memwrite(pa+0x10000,bytes(33792))
+            for i in range(32):wr(0x810000180+i*4,struct.unpack_from('<I',args,i*4)[0])
+            for o,v in [(4,mode),(8,len(payload)),(12,iova),(16,0),(20,iova+0x10000),(24,0),(28,1)]:wr(packet+o,v)
+            wr(packet,number)
+            check(f'tensor_mode{mode}_done',wait(0x81000002c,number))
+            check(f'tensor_mode{mode}_status',rd(0x810000020)==0)
+            check(f'tensor_mode{mode}_all_bytes',memread(pa+0x10000,33792)==expected)
+        check('tensor_tasks_same_process',len(spawns())==len(initial)+1)
+        wr(packet+28,0)
+        # Deterministic pause at an accepted, unfinished request. Only available
+        # under qtest; use it to prove cancellation, never successful DMA data.
+        def restore():
+            for off,val in [(0x10,0xe0000000),(0x14,0),(0x20,0),(0x24,8),(4,6)]:config(off,val)
+            check('recovery_ready_'+str(len(checks)),wait(0xe0000008,1))
+            wq(vtd+0x20,root);wr(vtd+0x18,1<<30);wr(vtd+0x18,1<<31)
+            for o,v in [(0,0),(8,0),(12,dev>>32),(16,0x1ffff),(32,dev>>32),(20,iova),(24,0),(4,1<<31)]:wr(atu+o,v)
+        task_id=19
+        for engine,read,hold in [('npu',True,1),('npu',False,2),('hdma',True,4),('hdma',False,8)]:
+            for action in ['reset','disconnect']:
+                label=f'{engine}_{"read" if read else "write"}_{action}'
+                old_pid=spawns()[-1];old_count=len(spawns());old_epoch=rd(0xe0000014)
+                wr(0xe0381080,hold)
+                if engine=='npu':
+                    for o,v in [(4,1),(8,8192),(28,0)]:wr(packet+o,v)
+                    wr(packet,task_id);task_id+=1
+                    end=time.monotonic()+10
+                    while time.monotonic()<end:
+                        if struct.unpack_from('<I',mb,0x500)[0]==1 and struct.unpack_from('<I',mb,0x508)[0]==(1 if read else 2):break
+                        time.sleep(.002)
+                    check(label+'_accepted',struct.unpack_from('<II',mb,0x500)[0]==1 and struct.unpack_from('<I',mb,0x508)[0]==(1 if read else 2))
+                else:
+                    channel=0xe0380000+(0x100 if read else 0)
+                    src,dst=(iova,0x20010000) if read else (0x20010000,iova+0x10000)
+                    for o,v in [(0,1),(0x8c,0xffffffff),(0x34,0x202),(0x1c,8192),(0x20,src&0xffffffff),(0x24,src>>32),(0x28,dst&0xffffffff),(0x2c,dst>>32),(4,1)]:wr(channel+o,v)
+                    check(label+'_accepted',wait(channel+0x80,1))
+                before=memread(pa+0x10000,32768)
+                if action=='reset':
+                    command('system_reset')
+                else:
+                    stop(service);service=None
+                    check(label+'_ready_withdrawn',wait(0xe0000008,0))
+                    with (work/'service-restart.log').open('a') as log:
+                        service=subprocess.Popen([sys.executable,str(ROOT/'simulator/tools/p1/service.py'),
+                            '--socket',str(sock),'--config',str(cfg),'--work',str(work/'service')],stdout=log,stderr=subprocess.STDOUT)
+                restore()
+                check(label+'_old_process_reaped',not Path(f'/proc/{old_pid}').exists())
+                check(label+'_one_replacement',len(spawns())==old_count+1)
+                check(label+'_no_old_host_write',memread(pa+0x10000,32768)==before)
+                check(label+'_hold_cleared',rd(0xe0381080)==0)
+                if action=='reset':check(label+'_epoch_advanced',rd(0xe0000014)==old_epoch+1)
+                check(label+'_no_false_completion',rd(0x81000002c)==0)
+                task(1,1);task_id=2
+                notifications=rd(0xe0000010);time.sleep(.03)
+                check(label+'_no_duplicate_completion',rd(0xe0000010)==notifications)
+                # Fresh mailbox backing after reconnect/reset: remap for next fault.
+                mb.close();maps.clear()
+                fdpath=next(p for p in fdroot.iterdir() if 'zc-p1-' in os.readlink(p) and p.stat().st_size==4096)
+                fd=os.open(fdpath,os.O_RDWR);mb=mmap.mmap(fd,4096);os.close(fd);maps.append(mb)
+        trace=[json.loads(line) for line in (work/'qemu.log').read_text().splitlines() if line.startswith('{"event":"p2_host"')]
+        check('trace_context_and_status',bool(trace) and all(
+            all(key in item for key in ['timestamp_ns','bus','devfn','epoch','session','engine','parent_id','channel','task_id','hart_id','address_domain','memtx','phase']) for item in trace))
+        check('trace_hdma_channel_and_parent',any(item['channel']>=0 and item['parent_id']>0 for item in trace))
         qt.close();mf.close();qm.close();passed=True
     finally:
         stop(qemu);stop(service)
         for m in maps:m.close()
         for p in [sock,qtpath,qmpath]:p.unlink(missing_ok=True)
-        files=list((HERE/'runtime').glob('*'))+[HERE/'run_spike.py',SIM/'riscv/sim.cc',SIM/'riscv/sim.h',SIM/'riscv/p2_pcie.h',ROOT/'simulator/tools/p1/service.py',SPIKE,QEMU]
+        files=list((HERE/'runtime').glob('*'))+[HERE/'run_spike.py',SIM/'riscv/sim.cc',SIM/'riscv/sim.h',SIM/'riscv/p2_pcie.h',ROOT/'simulator/tools/p1/service.py',SPIKE,QEMU,
+            ROOT/'simulator/riscv-tests/packet_runtime_test/tensor-args.bin',
+            ROOT/'experiments/single_die_packet/run-20261027T100512-648188Z/moe/data/result_l1_spike.bin']
+        files+=list((ROOT/'moe_bf16_sint4_33x29x34_fix/data').glob('*l1.bin'))
         (work/'manifest.json').write_text(json.dumps({str(p):digest(p) for p in files if p.is_file()},indent=2))
         (work/'results.json').write_text(json.dumps({'pass':passed,'p2_full_exit':False,'checks':checks},indent=2))
         print('Evidence:',work,flush=True)

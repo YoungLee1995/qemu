@@ -10,7 +10,7 @@
 
 typedef struct P2Channel {
     uint32_t r[P2_REGS];
-    uint64_t src, dst, desc;
+    uint64_t src, dst, desc, parent;
     uint32_t remaining, elements, desc_control;
     bool busy, linked;
 } P2Channel;
@@ -19,7 +19,8 @@ typedef struct P2State {
     bool enabled, trace;
     P2Channel ch[P2_CHANNELS];
     uint32_t atu[32][9], inbound[32][9];
-    uint64_t requests, bytes, faults, mapping_version;
+    uint32_t test_hold; /* qtest-only deterministic in-flight cancellation */
+    uint64_t requests, parents, bytes, faults, mapping_version;
 } P2State;
 
 static void p2_tick(ZCP1State *s);

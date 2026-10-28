@@ -17,12 +17,13 @@ def main():
     args=ap.parse_args()
     work=HERE/'evidence'/f'all-{time.time_ns()}';work.mkdir(parents=True)
     result={'p2_first_implementation_pass':False,'p2_full_exit':False,
-        'scope':'single-card-functional-host-dma-subset-v1',
-        'remaining':['confirm physical MCU IRQ ID; profile IRQ 60 is experimental',
-                     'channel-level hardware NPU error ABI; current sticky status is per hart',
-                     'non-memory iATU and advanced HDMA features outside current profile',
-                     'production toolchain file/task parsing and real Tensor numerical closure',
-                     'exhaustive per-engine disconnect/FLR/concurrent reset matrix'],
+        'scope':'P2-single-card-functional-profile-v1',
+        'hardware_compatibility_exit':False,
+        'compatibility_followups':['physical MCU IRQ ID; profile uses IRQ 60',
+                     'hardware NPU channel error CSR ABI; diagnostic status is per hart',
+                     'advanced DWC features outside the supplied demo memory profile',
+                     'production task-file ABI and independent Tensor numerical golden',
+                     'FLR is not advertised; current reset is QEMU device/system reset'],
         'steps':{}}
     try:
         if not args.skip_build:
@@ -42,15 +43,27 @@ def main():
             if code or path is None:raise RuntimeError(label+' failed')
             data=json.loads((path/'results.json').read_text())
             if not data.get('p1_full_exit' if label=='p1' else 'pass'):raise RuntimeError(label+' failed result')
+            if label=='spike':
+                required=['tensor_tasks_same_process','trace_context_and_status']
+                required += [f'tensor_mode{mode}_all_bytes' for mode in range(1,5)]
+                required += [f'{engine}_{direction}_{action}_no_duplicate_completion'
+                    for engine in ['npu','hdma'] for direction in ['read','write']
+                    for action in ['reset','disconnect']]
+                if not all(data['checks'].get(key) for key in required):
+                    raise RuntimeError('P2 closure evidence incomplete')
             print(label,'PASS',path,flush=True)
         files=list(HERE.glob('*.py'))+list(HERE.glob('*.c'))+list((HERE/'runtime').glob('*'))
         files+=list((ROOT/'qemu/hw/misc').glob('zc-pcie-p[12]*'))
         files+=list((ROOT/'simulator/tools/p1').glob('*.py'))
+        files+=[ROOT/'simulator/riscv-tests/packet_runtime_test/tensor-args.bin',
+                ROOT/'experiments/single_die_packet/run-20261027T100512-648188Z/moe/data/result_l1_spike.bin']
+        files+=list((ROOT/'moe_bf16_sint4_33x29x34_fix/data').glob('*l1.bin'))
         files+=[SIM/'riscv/sim.h',SIM/'riscv/sim.cc',SIM/'riscv/p2_pcie.h',
                 SIM/'riscv/mbox.cc',SIM/'smart/sm_npu.cc',SPIKE,QEMU]
         (work/'manifest.json').write_text(json.dumps({str(p):digest(p) for p in files if p.is_file()},indent=2))
         result['p2_first_implementation_pass']=True
         result['p2_extended_functional_pass']=True
+        result['p2_full_exit']=True
     except BaseException as e:
         result['error']=str(e)
         raise

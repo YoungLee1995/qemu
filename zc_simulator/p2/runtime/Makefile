@@ -5,7 +5,7 @@ CFLAGS = -O2 -g -march=rv64gcv -mabi=lp64d -mcmodel=medany -msmall-data-limit=0 
 all: mcu.bin npu.bin
 mcu.elf: start.S runtime.c link.ld
 	$(CC) $(CFLAGS) -DMCU -Wl,-T,link.ld -Wl,--defsym=LOAD_BASE=0x40000000 -Wl,--build-id=none -o $@ start.S runtime.c
-npu.elf: start.S runtime.c dma.S link.ld
-	$(CC) $(CFLAGS) -Wl,-T,link.ld -Wl,--defsym=LOAD_BASE=0x4000000000 -Wl,--build-id=none -o $@ start.S runtime.c dma.S
+npu.elf: start.S runtime.c dma.S execute.S link.ld
+	$(CC) $(CFLAGS) -Wl,-T,link.ld -Wl,--defsym=LOAD_BASE=0x4000000000 -Wl,--build-id=none -o $@ start.S runtime.c dma.S execute.S
 %.bin: %.elf
 	$(OBJCOPY) -O binary $< $@

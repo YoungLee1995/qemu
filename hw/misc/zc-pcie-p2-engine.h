@@ -43,7 +43,8 @@ static bool p2_translate(ZCP1State *s, uint64_t addr, uint64_t len,
  * One page per transaction makes successful byte accounting unambiguous.
  */
 static bool p2_host(ZCP1State *s, uint64_t iova, void *buf, size_t len,
-                    bool write, const char *engine, uint64_t original)
+                    bool write, const char *engine, uint64_t original,
+                    int channel, uint64_t parent)
 {
     MemTxAttrs attrs = { .memory = true };
     PCIDevice *dev = &s->parent_obj;
@@ -63,10 +64,16 @@ done:
                 "\"engine\":\"%s\",\"request\":%" PRIu64 ","
                 "\"device_addr\":%" PRIu64 ",\"iova\":%" PRIu64 ","
                 "\"length\":%zu,\"write\":%s,\"path\":\"host_dma_as\","
-                "\"mapping_version\":%" PRIu64 ",\"memtx\":%u}\n",
+                "\"mapping_version\":%" PRIu64 ",\"memtx\":%u,"
+                "\"timestamp_ns\":%" PRId64 ",\"bus\":%u,\"channel\":%d,"
+                "\"parent_id\":%" PRIu64 ",\"task_id\":null,\"hart_id\":null,"
+                "\"phase\":\"transaction_returned\","
+                "\"address_domain\":\"host_iova\"}\n",
                 s->card, s->session, s->epoch, dev->devfn, engine,
                 s->p2.requests, original, iova, len, write ? "true" : "false",
-                s->p2.mapping_version, result);
+                s->p2.mapping_version, result,
+                qemu_clock_get_ns(QEMU_CLOCK_REALTIME),
+                pci_bus_num(pci_get_bus(dev)), channel, parent);
     }
     if (result != MEMTX_OK) {
         s->p2.faults++;
@@ -112,6 +119,7 @@ static void p2_cancel_channels(ZCP1State *s)
 
 static void p2_cancel(ZCP1State *s)
 {
+    s->p2.test_hold = 0;
     p2_cancel_channels(s);
     /* Queue response 2 means rejected; producer cannot reuse until response. */
     uint32_t *q = s->mailbox + P2_QUEUE / 4;
@@ -123,6 +131,9 @@ static void p2_cancel(ZCP1State *s)
 
 static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
 {
+    if (addr == 0x381080 && qtest_enabled()) {
+        return s->p2.test_hold;
+    }
     if (addr >= 0x381000 && addr < 0x381080) {
         return p1_load(s->mailbox + 0x440 / 4 + (addr - 0x381000) / 4);
     }
@@ -149,6 +160,10 @@ static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
 
 static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
 {
+    if (addr == 0x381080 && qtest_enabled()) {
+        s->p2.test_hold = value & 15;
+        return;
+    }
     if (addr >= 0x381000 && addr < 0x381080) {
         if (value == 0) {
             p1_store(s->mailbox + 0x440 / 4 +
@@ -174,6 +189,7 @@ static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
                 p2_finish(s, c, true);
                 return;
             }
+            c->parent = ++s->p2.parents;
             c->linked = c->r[0x34 / 4] & 1;
             c->desc = ((uint64_t)c->r[5] << 32) | c->r[4];
             c->src = ((uint64_t)c->r[9] << 32) | c->r[8];
@@ -256,6 +272,9 @@ static void p2_channel_tick(ZCP1State *s, unsigned idx)
             return;
         }
     }
+    if (s->p2.test_hold & (read ? 4 : 8)) {
+        return;
+    }
     remote = read ? c->src : c->dst;
     if (c->r[0x34 / 4] & 0x200) {
         iova = remote;
@@ -274,7 +293,7 @@ static void p2_channel_tick(ZCP1State *s, unsigned idx)
         memcpy(buf, local, n);
     }
     if (!p2_host(s, iova, buf, n, !read, read ? "hdma_read" :
-                 "hdma_write", remote)) {
+                 "hdma_write", remote, idx, c->parent)) {
         p2_finish(s, c, true);
         return;
     }
@@ -309,6 +328,10 @@ static void p2_proxy_tick(ZCP1State *s)
     addr = ((uint64_t)q[4] << 32) | q[3];
     kind = q[2];
     len = q[5];
+    if (p1_ready(s) && (kind == 1 || kind == 2) &&
+        (s->p2.test_hold & (kind == 1 ? 1 : 2))) {
+        return;
+    }
     if (q[1] == s->epoch && q[7] == 0 && len == 4 && !(addr & 3) &&
         (kind == 3 || kind == 4) && addr >= 0x18103180 && addr < 0x1810319c) {
         unsigned off = addr - 0x18103180;
@@ -329,7 +352,8 @@ static void p2_proxy_tick(ZCP1State *s)
         while (done < len) {
             unsigned n = MIN(len - done, 4096 - ((iova + done) & 4095));
             if (!p2_host(s, iova + done, data + done, n, kind == 2,
-                         "model_proxy", addr + done)) {
+                         "model_proxy", addr + done, -1,
+                         ((uint64_t)q[9] << 32) | q[8])) {
                 okay = false;
                 break;
             }
