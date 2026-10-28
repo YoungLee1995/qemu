@@ -22,3 +22,6 @@ __pycache__/
 /p2/evidence/
 /p2/runtime/*.bin
 /p2/runtime/*.elf
+
+# P3 generated dual-card integration evidence
+/p3/evidence/

@@ -25,21 +25,27 @@ static bool p2_translate(ZCP1State *s, uint64_t addr, uint64_t len,
         uint64_t limit = ((uint64_t)((r[0] & (1u << 13)) ?
                                    r[8] : r[3]) << 32) | r[4];
         uint64_t target = ((uint64_t)r[6] << 32) | r[5];
-        if ((r[1] & (1u << 31)) && !(r[0] & ~0x2000u) &&
-            !(r[1] & ~0x80000000u) &&
-            addr >= base && addr <= limit && len - 1 <= limit - addr &&
-            target <= UINT64_MAX - (addr - base) &&
-            target + (addr - base) <= UINT64_MAX - (len - 1)) {
-            *iova = target + addr - base;
-            return true;
+        if (!(r[1] & (1u << 31)) || addr < base || addr > limit) {
+            continue;
         }
+        /* The first matching enabled region owns errors as well as success. */
+        if ((r[0] & ~0x2000u) || (r[1] & ~0x80000000u) ||
+            len - 1 > limit - addr || target > UINT64_MAX - (addr - base) ||
+            target + (addr - base) > UINT64_MAX - (len - 1)) {
+            return false;
+        }
+        *iova = target + addr - base;
+        return true;
     }
     return false;
 }
 
+#include "zc-pcie-p3-route.h"
+
 /*
  * The source function selects the DMA AddressSpace, hence the requester/domain.
- * memory=true rejects MMIO and self BAR recursion. Peer routing is P3 work.
+ * memory=true rejects MMIO and self BAR recursion.
+ * P3 uses an explicitly reserved peer aperture.
  * One page per transaction makes successful byte accounting unambiguous.
  */
 static bool p2_host(ZCP1State *s, uint64_t iova, void *buf, size_t len,
@@ -48,32 +54,70 @@ static bool p2_host(ZCP1State *s, uint64_t iova, void *buf, size_t len,
 {
     MemTxAttrs attrs = { .memory = true };
     PCIDevice *dev = &s->parent_obj;
+    bool peer_domain = s->p3 && iova >= s->peer_base &&
+                       iova - s->peer_base < s->peer_size;
+    const char *path = peer_domain ? "switch_peer" : "host_dma_as";
+    int peer = -1;
     MemTxResult result = MEMTX_ACCESS_ERROR;
     s->p2.requests++;
     if (!len || iova > UINT64_MAX - (len - 1) ||
         !(pci_get_word(dev->config + PCI_COMMAND) & PCI_COMMAND_MASTER)) {
         goto done;
     }
+    if (s->p3 && channel >= 0 &&
+        s->p2.ch[channel].route_signature != p3_signature()) {
+        goto done;
+    }
+    if (s->p3 && channel < 0) {
+        uint64_t task = p1_load(control(s) + 64);
+        if (!s->proxy_pinned || s->proxy_task != task) {
+            s->proxy_task = task;
+            s->proxy_signature = p3_signature();
+            s->proxy_pinned = true;
+        }
+        if (s->proxy_signature != p3_signature()) {
+            goto done;
+        }
+    }
+    if (peer_domain) {
+        result = p3_transfer(s, iova, buf, len, write, &peer);
+        goto done;
+    }
     result = pci_dma_rw(dev, iova, buf, len,
                         write ? DMA_DIRECTION_FROM_DEVICE :
                                 DMA_DIRECTION_TO_DEVICE, attrs);
 done:
+    if (s->p2.trace && peer >= 0) {
+        for (GSList *it = p3_endpoints; it; it = it->next) {
+            ZCP1State *t = it->data;
+            if (t->p3 && t->card == peer) {
+                fprintf(stderr, "{\"event\":\"p3_route\",\"card\":%u,"
+                        "\"request\":%" PRIu64 ",\"peer_card\":%u,"
+                        "\"peer_session\":%" PRIu64 ",\"peer_epoch\":%u,"
+                        "\"peer_mapping_version\":%" PRIu64 ","
+                        "\"route_signature\":%" PRIu64 ",\"memtx\":%u}\n",
+                        s->card, s->p2.requests, t->card, t->session, t->epoch,
+                        t->p2.mapping_version, p3_signature(), result);
+            }
+        }
+    }
     if (s->p2.trace) {
         fprintf(stderr, "{\"event\":\"p2_host\",\"card\":%u,"
                 "\"session\":%" PRIu64 ",\"epoch\":%u,\"devfn\":%u,"
                 "\"engine\":\"%s\",\"request\":%" PRIu64 ","
                 "\"device_addr\":%" PRIu64 ",\"iova\":%" PRIu64 ","
-                "\"length\":%zu,\"write\":%s,\"path\":\"host_dma_as\","
+                "\"length\":%zu,\"write\":%s,\"path\":\"%s\",\"peer_card\":%d,"
                 "\"mapping_version\":%" PRIu64 ",\"memtx\":%u,"
                 "\"timestamp_ns\":%" PRId64 ",\"bus\":%u,\"channel\":%d,"
                 "\"parent_id\":%" PRIu64 ",\"task_id\":null,\"hart_id\":null,"
                 "\"phase\":\"transaction_returned\","
-                "\"address_domain\":\"host_iova\"}\n",
+                "\"address_domain\":\"%s\"}\n",
                 s->card, s->session, s->epoch, dev->devfn, engine,
                 s->p2.requests, original, iova, len, write ? "true" : "false",
-                s->p2.mapping_version, result,
+                path, peer, s->p2.mapping_version, result,
                 qemu_clock_get_ns(QEMU_CLOCK_REALTIME),
-                pci_bus_num(pci_get_bus(dev)), channel, parent);
+                pci_bus_num(pci_get_bus(dev)), channel, parent,
+                peer_domain ? "peer_bus_address" : "host_iova");
     }
     if (result != MEMTX_OK) {
         s->p2.faults++;
@@ -131,6 +175,12 @@ static void p2_cancel(ZCP1State *s)
 
 static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
 {
+    if (s->p3 && qtest_enabled() && addr == 0x381088) {
+        return s->proxy_pinned ? s->proxy_task : 0;
+    }
+    if (s->p3 && addr == 0x381084) {
+        return s->p3_allow;
+    }
     if (addr == 0x381080 && qtest_enabled()) {
         return s->p2.test_hold;
     }
@@ -160,6 +210,15 @@ static uint32_t p2_reg_read(ZCP1State *s, uint64_t addr)
 
 static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
 {
+    if (s->p3 && addr == 0x381084) {
+        if (value <= 1) {
+            s->p3_allow = value;
+            s->p2.mapping_version++;
+        } else {
+            s->error = 3;
+        }
+        return;
+    }
     if (addr == 0x381080 && qtest_enabled()) {
         s->p2.test_hold = value & 15;
         return;
@@ -190,6 +249,7 @@ static void p2_reg_write(ZCP1State *s, uint64_t addr, uint32_t value)
                 return;
             }
             c->parent = ++s->p2.parents;
+            c->route_signature = s->p3 ? p3_signature() : 0;
             c->linked = c->r[0x34 / 4] & 1;
             c->desc = ((uint64_t)c->r[5] << 32) | c->r[4];
             c->src = ((uint64_t)c->r[9] << 32) | c->r[8];
@@ -241,6 +301,10 @@ static void p2_channel_tick(ZCP1State *s, unsigned idx)
         return;
     }
     if (!p1_ready(s)) {
+        p2_finish(s, c, true);
+        return;
+    }
+    if (s->p3 && c->route_signature != p3_signature()) {
         p2_finish(s, c, true);
         return;
     }
@@ -328,6 +392,19 @@ static void p2_proxy_tick(ZCP1State *s)
     addr = ((uint64_t)q[4] << 32) | q[3];
     kind = q[2];
     len = q[5];
+    if (s->p3 && (kind == 1 || kind == 2)) {
+        uint64_t task = p1_load(control(s) + 64);
+        if (!s->proxy_pinned || s->proxy_task != task) {
+            s->proxy_task = task;
+            s->proxy_signature = p3_signature();
+            s->proxy_pinned = true;
+        }
+        if (s->proxy_signature != p3_signature()) {
+            q[6] = 1;
+            p1_store(q, 2);
+            return;
+        }
+    }
     if (p1_ready(s) && (kind == 1 || kind == 2) &&
         (s->p2.test_hold & (kind == 1 ? 1 : 2))) {
         return;

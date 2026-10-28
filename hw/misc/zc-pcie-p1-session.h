@@ -24,6 +24,8 @@ static void p1_session_fail(ZCP1State *s, const char *reason)
         close(s->session_fd);
         s->session_fd = -1;
     }
+    s->p2.mapping_version++;
+    s->proxy_pinned = false;
     s->active = s->session_ready = false;
     if (s->p2.enabled) {
         p2_cancel(s);

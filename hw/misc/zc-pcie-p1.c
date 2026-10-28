@@ -11,12 +11,15 @@
 #include "qemu/error-report.h"
 #include "qemu/memfd.h"
 #include "system/qtest.h"
+#include "system/address-spaces.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/random.h>
 #include "hw/core/qdev-properties.h"
 #include "hw/pci/pci_device.h"
 #include "hw/pci/pcie.h"
+#include "hw/pci/pci_bridge.h"
+#include "hw/pci/pci_bus.h"
 #include "hw/pci/msix.h"
 #include "migration/vmstate.h"
 #include "qom/object.h"
@@ -36,6 +39,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(ZCP1State, ZC_PCIE_P1)
 struct ZCP1State {
     PCIDevice parent_obj;
     P2State p2;
+    bool p3, p3_allow;
+    uint64_t peer_base, peer_size;
+    uint64_t proxy_task, proxy_signature;
+    bool proxy_pinned;
     MemoryRegion bar0, bar2, bar4;
     QEMUTimer *timer;
     int32_t ddr0_fd, ddr1_fd, mailbox_fd;
@@ -51,6 +58,20 @@ struct ZCP1State {
     int64_t deadline, heartbeat_at, retry_at;
     uint16_t pending_type;
     bool session_ready, reset_pending, software_stopped, session_started;
+};
+
+static GSList *p3_endpoints; /* Device-thread owned; removed before unmap. */
+static uint64_t p3_fabric_generation;
+static unsigned p3_users;
+
+static void p3_map_commit(MemoryListener *listener)
+{
+    p3_fabric_generation++;
+}
+
+static MemoryListener p3_map_listener = {
+    .name = "zc-p3-fabric",
+    .commit = p3_map_commit,
 };
 
 #include "zc-pcie-p1-session.h"
@@ -274,6 +295,19 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
 {
     ZCP1State *s = ZC_PCIE_P1(pdev);
     s->session_fd = -1;
+    if (s->p3 && (!s->p2.enabled || !s->peer_size ||
+        s->peer_base > UINT64_MAX - (s->peer_size - 1))) {
+        error_setg(errp, "P3 requires P2 and a nonempty, "
+                   "nonoverflowing peer aperture");
+        return;
+    }
+    for (GSList *it = p3_endpoints; s->p3 && it; it = it->next) {
+        ZCP1State *t = it->data;
+        if (t->p3 && t->card == s->card) {
+            error_setg(errp, "P3 card-id must be unique");
+            return;
+        }
+    }
     if (s->backend_socket) {
         if (s->ddr0_fd >= 0 || s->ddr1_fd >= 0 || s->mailbox_fd >= 0 ||
             !s->config_sha256 || strlen(s->config_sha256) != 64 ||
@@ -352,6 +386,10 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
     for (unsigned i = 0; i < 32; i++) {
         msix_vector_use(pdev, i);
     }
+    if (s->p3 && p3_users++ == 0) {
+        memory_listener_register(&p3_map_listener, &address_space_memory);
+    }
+    p3_endpoints = g_slist_prepend(p3_endpoints, s);
     s->timer = timer_new_ms(QEMU_CLOCK_REALTIME, p1_tick, s);
     s->active = false;
     timer_mod(s->timer, qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + 1);
@@ -373,6 +411,10 @@ failfds:
 static void p1_exit(PCIDevice *pdev)
 {
     ZCP1State *s = ZC_PCIE_P1(pdev);
+    p3_endpoints = g_slist_remove(p3_endpoints, s);
+    if (s->p3 && --p3_users == 0) {
+        memory_listener_unregister(&p3_map_listener);
+    }
     timer_free(s->timer);
     if (s->session_fd >= 0) {
         close(s->session_fd); /* Service reaps backend on EOF. */
@@ -396,6 +438,8 @@ static void p1_reset(DeviceState *dev)
         s->initialized = true;
         return;
     }
+    s->p2.mapping_version++;
+    s->proxy_pinned = false;
     /* Reset blocks new writes until launcher has reaped/restarted backend. */
     s->active = false;
     if (s->p2.enabled) {
@@ -427,11 +471,19 @@ static void p1_reset(DeviceState *dev)
 static void p1_config_write(PCIDevice *pdev, uint32_t address,
                             uint32_t val, int len)
 {
+    ZCP1State *s = ZC_PCIE_P1(pdev);
+    if (address < 0x28 && address + len > PCI_COMMAND) {
+        s->p2.mapping_version++;
+    }
     pci_default_write_config(pdev, address, val, len);
     msix_write_config(pdev, address, val, len);
 }
 
 static const Property props[] = {
+    DEFINE_PROP_BOOL("p3", ZCP1State, p3, false),
+    DEFINE_PROP_BOOL("p3-allow", ZCP1State, p3_allow, true),
+    DEFINE_PROP_UINT64("peer-base", ZCP1State, peer_base, 0x1000000000ULL),
+    DEFINE_PROP_UINT64("peer-size", ZCP1State, peer_size, 0x1000000000ULL),
     DEFINE_PROP_BOOL("p2-trace", ZCP1State, p2.trace, false),
     DEFINE_PROP_BOOL("p2", ZCP1State, p2.enabled, false),
     DEFINE_PROP_STRING("backend-socket", ZCP1State, backend_socket),

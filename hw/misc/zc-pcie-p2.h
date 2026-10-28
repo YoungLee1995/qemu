@@ -10,7 +10,7 @@
 
 typedef struct P2Channel {
     uint32_t r[P2_REGS];
-    uint64_t src, dst, desc, parent;
+    uint64_t src, dst, desc, parent, route_signature;
     uint32_t remaining, elements, desc_control;
     bool busy, linked;
 } P2Channel;
