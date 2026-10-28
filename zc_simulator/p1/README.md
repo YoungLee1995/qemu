@@ -1,5 +1,9 @@
 # P1 单卡共享内存接入实验
 
+> 最新实现：三个BAR已对齐为64位，大小4MiB/32MiB/32GiB，前两个non-prefetchable、最后一个prefetchable。当前代码与旧实验profile不同；最新运行配置、P2准备项和证据见 [BAR对齐与P2准备](P2开发前准备与BAR对齐验收.md)。下文旧大小及“尚未修改”描述仅保留为历史。
+
+> 2026-10-28 BAR补充确认：用户提供硬件为三个64位BAR，BAR0=4MiB/non-prefetchable、BAR2=32MiB/non-prefetchable、BAR4=32GiB/prefetchable。当前代码仍是原P1实验布局，硬件profile尚未修改/复验；后续调整与历史启动panic说明见 [BAR属性确认](BAR硬件属性确认与接入调整.md)。
+
 > 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
 
 2026-10-27。当前已实现并验证 **P1-A：共享 DDR + Host mailbox + 软件 ready + 连续真实 Tensor 任务 + MSI-X + 基础复位**。完整 P1 尚未关闭：原设计的 socket 会话/能力协商、通用控制服务和协议错误矩阵仍待 P1-B。状态和运行证据见 [P1 执行与验收记录](P1执行与验收记录.md)。
@@ -52,16 +56,16 @@ sequenceDiagram
 | 项目 | 当前实验配置 |
 | --- | --- |
 | EP | 新类型 `zc-pcie-p1`，VID:DID `16c3:abcd`，保留 stage1 `zc-pcie-sim` |
-| BAR0 | 64KiB；诊断、32 MSI-X table/PBA；32 位对齐访问 |
-| BAR2 | 4MiB；前 2MiB → DDR0 offset `0x20000000`，对应设备地址 `0x40000000`；其余明确报不支持 |
-| BAR4 | 512MiB，64 位 prefetchable；下表中的共享控制区和 mailbox；未覆盖地址明确报不支持 |
+| BAR0 | 4MiB、64位non-prefetchable；诊断、32 MSI-X table/PBA；32 位对齐访问 |
+| BAR2 | 32MiB、64位non-prefetchable；前 2MiB → DDR0 offset `0x20000000`，对应设备地址 `0x40000000`；其余明确报不支持 |
+| BAR4 | 32GiB，64 位 prefetchable；下表中的共享控制区和 mailbox；未覆盖地址明确报不支持 |
 | DDR0 | 设备基址 `0x20000000`，跨度 1GiB，独立稀疏 memfd |
 | DDR1 | 设备基址 `0x4000000000`，跨度 256GiB，独立稀疏 memfd |
 | mailbox | 独立 4KiB memfd，前 `6*0x68` 字节是原 6 bank/8 channel 寄存器 |
 | 同步方式 | 小端宿主、进程间无锁 u32 原子；DATA/SEND 与完成发布的 release/acquire；周期调度刷新 ECLIC |
 | 生命周期 | launcher 启动/监督后端；epoch 变化令旧后端在模型调度边界退出 75；回收后才能清理和重建 |
 
-BAR 大小根据 Host demo 最大访问偏移推导为可容纳窗口的标准大小；BAR0、BAR4 属性及具体窗口映射是**内部软件 profile**，不据此声明真实芯片 BAR 布局已验收。BAR2 的固件字节在共享 DDR backing 中承载，不表示 SoC SRAM 物理建模已经完成。
+三个BAR的大小、64位类型与预取属性已按用户确认值实现并通过验收；BAR内部寄存器及具体窗口映射仍是**内部软件 profile**，完整硬件寄存器兼容性留待P2。BAR2 的固件字节在共享 DDR backing 中承载，不表示 SoC SRAM 物理建模已经完成。
 
 | BAR4 offset | 实验功能 |
 | --- | --- |
@@ -71,7 +75,7 @@ BAR 大小根据 Host demo 最大访问偏移推导为可容纳窗口的标准�
 | `0x18019000..+6*0x68` | 同一份 mailbox，STATUS W1C、INTEN、DATA0/1、SEND |
 | `0x18103180` 所在文件传输 IPC | 未实现；例如 trigger 写入置 BAR0 error=3，不伪造 done |
 
-BAR0 u32：`+0` magic=`0x5a435031`，`+4` profile version=1，`+8` 软件 ready，`+12` error（写 0 清除），`+16` 通知计数，`+20` epoch，`+24` 最后响应序号，`+32` 写 vector index 进行测试 IRQ 注入。MSI-X table 位于 `+0x2000`，PBA 位于 `+0x3000`。这些诊断字段是内部实验接口。
+BAR0 u32：`+0` magic=`0x5a435031`，`+4` profile version=2，`+8` 软件 ready，`+12` error（写 0 清除），`+16` 通知计数，`+20` epoch，`+24` 最后响应序号，`+32` 写 vector index 进行测试 IRQ 注入。MSI-X table 位于 `+0x2000`，PBA 位于 `+0x3000`。这些诊断字段是内部实验接口。
 
 mailbox 共享页 `+0x400` 为请求 epoch、`+0x404` 为 launcher 确认 epoch、`+0x408` 为后端 alive。它们不暴露为原 mailbox 寄存器。QEMU 只有在 epoch 匹配、后端 alive、MCU/NPU 都发布 ready 时接受输入；后端退出由 launcher 清 alive，QEMU 撤销 ready。reset 后先等待旧进程退出、监督线程结束，再复用 backing。当前验证空闲 reset，不承诺有 DMA 在途时的复位。
 

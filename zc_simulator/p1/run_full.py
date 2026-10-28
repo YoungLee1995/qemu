@@ -14,8 +14,8 @@ def main():
     ap.add_argument('--skip-build',action='store_true',help='Require existing latest Spike/QEMU/firmware build')
     args=ap.parse_args()
     work=HERE/'evidence'/f'full-{time.time_ns()}';work.mkdir(parents=True)
-    result={'p1_full_exit':False,'scope':'single-card-software-functional-profile-v1',
-            'hardware_bar_compatibility':False,'host_dma_accepted':False,'steps':{}}
+    result={'p1_full_exit':False,'scope':'single-card-functional-confirmed-bar-layout-v2',
+            'hardware_bar_compatibility':False,'confirmed_bar_attributes':True,'host_dma_accepted':False,'steps':{}}
     try:
         def run(name,command,timeout=600):
             with (work/(name+'.log')).open('w') as log:
@@ -38,6 +38,7 @@ def main():
         legacy=run('legacy',cmd,1800)
         run('session',[sys.executable,HERE/'run_session.py','--linux-evidence',legacy],600)
         run('peer-faults',[sys.executable,HERE/'run_peer_faults.py'])
+        run('bar-layout',[sys.executable,HERE/'run_bar_layout.py'])
         run('memory',[sys.executable,HERE/'run_memory.py'])
         run('faults',[sys.executable,HERE/'run_faults.py'])
         run('stage1',[sys.executable,HERE.parent/'stage1/run_all.py'])

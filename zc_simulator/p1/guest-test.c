@@ -46,7 +46,7 @@ int main(void) {
         unsigned long long a,b,c;
         check(fscanf(f,"%llx %llx %llx",&a,&b,&c)==3,"BAR resource line");
         if (i==0||i==2||i==4) {
-            uint64_t expected=i==0?65536:i==2?0x400000:0x20000000;
+            uint64_t expected=i==0?0x400000ULL:i==2?0x2000000ULL:0x800000000ULL;
             check(a && b-a+1==expected,"BAR size assigned");
             printf("P1_BAR %u base=%llx size=%llu\n",i,a,b-a+1);
         }
@@ -56,6 +56,13 @@ int main(void) {
     snprintf(path,sizeof(path),"%s/config",dev);
     int config=open(path,O_RDWR); uint16_t command=6;
     check(config>=0 && pwrite(config,&command,2,4)==2,"memory and bus master");
+    for (unsigned i=0;i<6;i+=2) {
+        uint32_t low,high;
+        check(pread(config,&low,4,0x10+i*4)==4 &&
+              pread(config,&high,4,0x14+i*4)==4,"BAR config read");
+        check((low&15)==(i==4?12:4),"64-bit BAR type and prefetch");
+        if(i==4) check(high!=0,"BAR4 above 4GiB");
+    }
     unsigned char cap; check(pread(config,&cap,1,0x34)==1,"capabilities");
     unsigned found=0;
     for (unsigned n=0;cap && n<48;n++) {
@@ -69,10 +76,11 @@ int main(void) {
     snprintf(path,sizeof(path),"%s/resource0",dev); int fd=open(path,O_RDWR);
     bar0=mmap(NULL,65536,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0); close(fd);
     snprintf(path,sizeof(path),"%s/resource2",dev);fd=open(path,O_RDWR);
-    bar2=mmap(NULL,0x400000,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);close(fd);
+    bar2=mmap(NULL,0x200000,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);close(fd);
     snprintf(path,sizeof(path),"%s/resource4",dev);fd=open(path,O_RDWR);
     bar4=mmap(NULL,0x20000000,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);close(fd);
     check(bar0!=MAP_FAILED&&bar2!=MAP_FAILED&&bar4!=MAP_FAILED,"BAR mmap");
+    check(bar0[1]==2,"BAR layout profile version 2");
     wait_value(bar0+2,1);
     check(bar2[0]!=0,"firmware bytes visible via shared DDR0");
     bar2[0x1ff000/4]=0x1234abcd;

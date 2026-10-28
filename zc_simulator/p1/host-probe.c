@@ -31,6 +31,9 @@ int main(void){
     check(dma[0]==0x1234abcd&&dma[524287]==0x87654321,"coherent edge read/write");
     snprintf(p,sizeof(p),"%s/resource0",dev);int b=open(p,O_RDWR);check(b>=0,"BAR0");
     volatile uint32_t *bar=mmap(NULL,65536,PROT_READ|PROT_WRITE,MAP_SHARED,b,0);check(bar!=MAP_FAILED,"BAR0 mmap");
+    /* Enumeration/probe may finish before the backend publishes ready. */
+    for(unsigned n=0;n<3000 && bar[2]!=1;n++)usleep(10000);
+    check(bar[2]==1,"backend software ready before IRQ injection");
     snprintf(p,sizeof(p),"%s/irq_count",dev);uint64_t before=read_number(p,0);
     bar[8]=0;__sync_synchronize();
     for(unsigned n=0;n<500&&read_number(p,0)==before;n++)usleep(10000);

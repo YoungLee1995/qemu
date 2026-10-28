@@ -132,7 +132,7 @@ static uint64_t p1_read0(void *opaque, hwaddr addr, unsigned size)
     ZCP1State *s = opaque;
     switch (addr) {
     case 0: return 0x5a435031;
-    case 4: return 1;
+    case 4: return 2;
     case 8: return p1_ready(s);
     case 12: return s->error;
     case 16: return s->notifications;
@@ -290,12 +290,14 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
         goto failmb;
     }
     memory_region_init_io(&s->bar0, OBJECT(s), &ops0, s,
-                          "zc-p1-control", 0x10000);
-    memory_region_init_io(&s->bar2, OBJECT(s), &ops2, s, "zc-p1-fw", 0x400000);
+                          "zc-p1-control", 0x400000);
+    memory_region_init_io(&s->bar2, OBJECT(s), &ops2, s, "zc-p1-fw", 0x2000000);
     memory_region_init_io(&s->bar4, OBJECT(s), &ops4, s,
-                          "zc-p1-device", 0x20000000);
-    pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->bar0);
-    pci_register_bar(pdev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->bar2);
+                          "zc-p1-device", 0x800000000ULL);
+    pci_register_bar(pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY |
+                     PCI_BASE_ADDRESS_MEM_TYPE_64, &s->bar0);
+    pci_register_bar(pdev, 2, PCI_BASE_ADDRESS_SPACE_MEMORY |
+                     PCI_BASE_ADDRESS_MEM_TYPE_64, &s->bar2);
     pci_register_bar(pdev, 4, PCI_BASE_ADDRESS_SPACE_MEMORY |
                      PCI_BASE_ADDRESS_MEM_TYPE_64 |
                      PCI_BASE_ADDRESS_MEM_PREFETCH,

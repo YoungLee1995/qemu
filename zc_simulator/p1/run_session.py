@@ -152,7 +152,7 @@ def main():
             m('qmp_capabilities')
             return q,m,qt,qm
         def mapped(q):
-            for off,value in [(0x10,0xe0000000),(0x18,0xd0000000),(0x20,0),(0x24,1),(4,6)]:
+            for off,value in [(0x10,0xe0000000),(0x14,0),(0x18,0xd0000000),(0x1c,0),(0x20,0),(0x24,8),(4,6)]:
                 q(f'outl 0xcf8 {0x80001000+off:#x}');q(f'outl 0xcfc {value:#x}')
         def wait(q,addr,value,timeout=30):
             deadline=time.monotonic()+timeout
@@ -166,23 +166,29 @@ def main():
         def task(q,number,seq):
             q('writel 0xd01ff000 0x1234abcd')
             packet=struct.pack('<8I',0x5041434b,1,160,number,0,1,0x8204000b,0)+args_data
-            for off in range(0,len(packet),4):q(f'writel {0x110000100+off:#x} {struct.unpack_from("<I",packet,off)[0]:#x}')
-            q(f'writel 0x118019008 {number}');q('writel 0x118019010 1')
-            check(f'task_{number}_response_{seq}',wait(q,0x11000002c,seq))
-            check(f'task_{number}_status',q('readl 0x110000020')==0 and q('readl 0x11000001c')==number)
+            for off in range(0,len(packet),4):q(f'writel {0x810000100+off:#x} {struct.unpack_from("<I",packet,off)[0]:#x}')
+            q(f'writel 0x818019008 {number}');q('writel 0x818019010 1')
+            check(f'task_{number}_response_{seq}',wait(q,0x81000002c,seq))
+            check(f'task_{number}_status',q('readl 0x810000020')==0 and q('readl 0x81000001c')==number)
             data=bytearray()
-            for off in range(0,len(reference),4):data+=struct.pack('<I',q(f'readl {0x110001000+off:#x}'))
+            for off in range(0,len(reference),4):data+=struct.pack('<I',q(f'readl {0x810001000+off:#x}'))
             check(f'task_{number}_full_output',bytes(data)==reference)
-            check(f'task_{number}_mcu_npu_ddr0',q('readl 0x110000030')==0x1234abcd and q('readl 0x110000034')==0x1234abcd)
+            check(f'task_{number}_mcu_npu_ddr0',q('readl 0x810000030')==0x1234abcd and q('readl 0x810000034')==0x1234abcd)
         q,m,qt,qm=start_qtest('reset')
         mapped(q);check('qemu_socket_software_ready',wait(q,0xe0000008,1))
+        def current_spawn():
+            events=[json.loads(x) for x in (work/'service/service.jsonl').read_text().splitlines()]
+            return [(e['session'],e['pid']) for e in events if e['event']=='spawn']
+        before_tasks=current_spawn()
         task(q,1,1);task(q,2,2)
+        check('ordinary_tasks_same_spike_pid',current_spawn()==before_tasks)
+        check('ordinary_tasks_backend_alive',Path(f'/proc/{before_tasks[-1][1]}').exists())
         # MMIO invalid widths must leave the shared packet unchanged.
-        q('writel 0x110000100 0x12345678')
-        q('writeb 0x110000100 0xff');q('writew 0x110000100 0xffff')
-        check('illegal_width_no_write',q('readl 0x110000100')==0x12345678)
-        q('writel 0x110000101 0xdeadbeef')
-        check('unaligned_no_write',q('readl 0x110000100')==0x12345678)
+        q('writel 0x810000100 0x12345678')
+        q('writeb 0x810000100 0xff');q('writew 0x810000100 0xffff')
+        check('illegal_width_no_write',q('readl 0x810000100')==0x12345678)
+        q('writel 0x810000101 0xdeadbeef')
+        check('unaligned_no_write',q('readl 0x810000100')==0x12345678)
         # Concurrent remote atomic SEND with Host W1C/INTEN on separate bits.
         # Test-only /proc access observes the actual QEMU-created mailbox FD.
         fdpath=next(p for p in Path(f'/proc/{qemu.pid}/fd').iterdir() if 'zc-p1-mailbox' in os.readlink(p))
@@ -197,7 +203,7 @@ def main():
         def sender():
             while running.is_set():atomic_or(ctypes.byref(word),128,3)
         thread=threading.Thread(target=sender);thread.start()
-        okay=True;bank=0x118019000+5*0x68
+        okay=True;bank=0x818019000+5*0x68
         try:
             for i in range(2000):
                 q(f'writel {bank+4:#x} {128 if i&1 else 0}')

@@ -54,16 +54,16 @@ def main():
                 return int(r[1],16) if len(r)>1 else 0
             def cfg(slot,off,v):
                 q(f'outl 0xcf8 {0x80000000+(slot<<11)+off:#x}');q(f'outl 0xcfc {v:#x}')
-            for slot,bar0,bar2 in [(2,0xe0000000,0xd0000000),(3,0xe0010000,0xd0400000)]:
-                cfg(slot,0x10,bar0);cfg(slot,0x18,bar2);cfg(slot,4,6)
+            for slot,bar0,bar2 in [(2,0xe0000000,0xd0000000),(3,0xe0400000,0xd2000000)]:
+                cfg(slot,0x10,bar0);cfg(slot,0x14,0);cfg(slot,0x18,bar2);cfg(slot,0x1c,0);cfg(slot,4,6)
             check('card_a_last_word',q('readl 0xd01ffffc')==0x13572468)
-            check('card_b_isolated',q('readl 0xd05ffffc')==0x24681357)
+            check('card_b_isolated',q('readl 0xd21ffffc')==0x24681357)
             guard=bytes(a.maps[0][0x20200000:0x20200040])
             q('writel 0xd0200000 0xdeadbeef')
             check('bar2_outside_aperture_rejected',q('readl 0xe000000c')==3 and bytes(a.maps[0][0x20200000:0x20200040])==guard)
             q('writel 0xe000000c 0')
             check('bar2_unsupported_read',q('readl 0xd0200000')==0xffffffff and q('readl 0xe000000c')==3)
-            check('other_card_error_isolated',q('readl 0xe001000c')==0)
+            check('other_card_error_isolated',q('readl 0xe040000c')==0)
             qt.close();stop(proc)
         # Re-run real interrupt handlers against the new shared mailbox storage.
         tests=ROOT/'simulator/riscv-tests/runtime_test'

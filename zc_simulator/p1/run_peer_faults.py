@@ -57,14 +57,14 @@ def main():
                         qt.write(cmd.encode()+b'\n');r=qt.readline().decode().split()
                         if not r or r[0]!='OK':raise RuntimeError(r)
                         return int(r[1],16) if len(r)>1 else 0
-                    for off,value in [(0x10,0xe0000000),(0x20,0),(0x24,1),(4,6)]:
+                    for off,value in [(0x10,0xe0000000),(0x14,0),(0x20,0),(0x24,8),(4,6)]:
                         q(f'outl 0xcf8 {0x80001000+off:#x}');q(f'outl 0xcfc {value:#x}')
                     deadline=time.monotonic()+5
                     while q('readl 0xe000000c')!=4 and time.monotonic()<deadline:time.sleep(.005)
                     checks[case]=q('readl 0xe000000c')==4 and q('readl 0xe0000008')==0
                     # Failed session never accepts a Host packet write.
-                    q('writel 0x110000100 0xdeadbeef')
-                    checks[case+'_blocks_write']=q('readl 0x110000100')==0
+                    q('writel 0x810000100 0xdeadbeef')
+                    checks[case+'_blocks_write']=q('readl 0x810000100')==0
                     if not checks[case] or not checks[case+'_blocks_write']:raise RuntimeError(case)
                     print(case,'PASS',flush=True);qt.close()
             finally:

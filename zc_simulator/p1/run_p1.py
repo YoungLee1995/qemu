@@ -186,6 +186,7 @@ echo GUEST_RESULT=$?
              '-icount','shift=3,align=off,sleep=off',
              '-kernel',str(kernel),'-initrd',str(initrd),
              '-append','console=ttyS0 rdinit=/init intel_iommu=on iommu.strict=1 panic=-1',
+             '-global','q35-pcihost.pci-hole64-size=64G',
              '-device','intel-iommu,intremap=on,caching-mode=on',
              '-device','pcie-root-port,id=rp,chassis=1','-device','x3130-upstream,id=sw,bus=rp',
              '-device','xio3130-downstream,id=dp,bus=sw,chassis=2',
@@ -226,7 +227,7 @@ echo GUEST_RESULT=$?
             def cfg(offset,value,width='outl'):
                 qtest(f'outl 0xcf8 {0x80001000+offset:#x}');qtest(f'{width} 0xcfc {value:#x}')
             def mapped():
-                cfg(0x10,0xe0000000);cfg(0x20,0);cfg(0x24,1);cfg(4,6,'outw')
+                cfg(0x10,0xe0000000);cfg(0x14,0);cfg(0x20,0);cfg(0x24,8);cfg(4,6,'outw')
             qmp('qmp_capabilities');mapped()
             def read(addr):return int(qtest(f'readl {addr:#x}')[0],16)
             def write(addr,v):qtest(f'writel {addr:#x} {v:#x}')
@@ -237,7 +238,7 @@ echo GUEST_RESULT=$?
             write(0xe0000020,31)
             check('msix_masked_pending',read(0xe0003000)&(1<<31))
             # Invalid file trigger must produce explicit error, not fake success.
-            write(0x100000000+0x18103190,0x5a5aa5a5)
+            write(0x800000000+0x18103190,0x5a5aa5a5)
             check('unsupported_dma_rejected',read(0xe000000c)==3)
             qmp('system_reset')
             check('reset_backend_stopped',backend.wait(timeout=10)==75)
@@ -257,7 +258,7 @@ echo GUEST_RESULT=$?
             while read(0xe0000008) and time.monotonic()<deadline:time.sleep(.01)
             check('backend_death_not_ready',read(0xe0000008)==0)
             before=bytes(backing.maps[1][CONTROL+0x100:CONTROL+0x104])
-            write(0x110000100,0xabcdef01)
+            write(0x810000100,0xabcdef01)
             check('backend_death_blocks_input',bytes(backing.maps[1][CONTROL+0x100:CONTROL+0x104])==before and read(0xe000000c)==3)
             qmp('quit');check('qtest_exit',qemu.wait(timeout=10)==0)
             qt.close();qm.close()
