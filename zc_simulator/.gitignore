@@ -28,3 +28,6 @@ __pycache__/
 
 # P4 generated platform, guest builds and multi-card integration evidence
 /p4/evidence/
+
+# P5 generated protocol, communication and regression evidence
+/p5/evidence/

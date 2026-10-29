@@ -35,11 +35,13 @@ OBJECT_DECLARE_SIMPLE_TYPE(ZCP1State, ZC_PCIE_P1)
 #define MAILBOX_OFFSET 0x18019000ULL
 
 #include "zc-pcie-p2.h"
+#include "zc-pcie-p5-fabric.h"
 
 struct ZCP1State {
     PCIDevice parent_obj;
     P2State p2;
-    bool p3, p3_allow, p4_isolation;
+    P5State p5;
+    bool p3, p3_allow, p4_isolation, p5_flr;
     uint64_t p4_map_generation;
     uint64_t peer_base, peer_size;
     uint64_t proxy_task, proxy_signature;
@@ -311,6 +313,11 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
 {
     ZCP1State *s = ZC_PCIE_P1(pdev);
     s->session_fd = -1;
+    s->p5.fd = -1;
+    if (s->p5.socket && !s->p3) {
+        error_setg(errp, "P5 fabric requires P3");
+        return;
+    }
     if (s->p4_isolation && !s->p3) {
         error_setg(errp, "P4 isolation requires P3");
         return;
@@ -385,6 +392,9 @@ static void p1_realize(PCIDevice *pdev, Error **errp)
         error_setg(errp, "cannot initialize P1 PCIe capability");
         goto failmb;
     }
+    if (s->p5_flr) {
+        pcie_cap_flr_init(pdev);
+    }
     memory_region_init_io(&s->bar0, OBJECT(s), &ops0, s,
                           "zc-p1-control", 0x400000);
     memory_region_init_io(&s->bar2, OBJECT(s), &ops2, s, "zc-p1-fw", 0x2000000);
@@ -436,6 +446,9 @@ static void p1_exit(PCIDevice *pdev)
         memory_listener_unregister(&p3_map_listener);
     }
     timer_free(s->timer);
+    if (s->p5.fd >= 0) {
+        close(s->p5.fd);
+    }
     if (s->session_fd >= 0) {
         close(s->session_fd); /* Service reaps backend on EOF. */
     }
@@ -497,9 +510,14 @@ static void p1_config_write(PCIDevice *pdev, uint32_t address,
     }
     pci_default_write_config(pdev, address, val, len);
     msix_write_config(pdev, address, val, len);
+    if (s->p5_flr) {
+        pcie_cap_flr_write_config(pdev, address, val, len);
+    }
 }
 
 static const Property props[] = {
+    DEFINE_PROP_STRING("p5-fabric-socket", ZCP1State, p5.socket),
+    DEFINE_PROP_BOOL("p5-flr", ZCP1State, p5_flr, false),
     DEFINE_PROP_BOOL("p4-isolation", ZCP1State, p4_isolation, false),
     DEFINE_PROP_BOOL("p3", ZCP1State, p3, false),
     DEFINE_PROP_BOOL("p3-allow", ZCP1State, p3_allow, true),

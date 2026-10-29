@@ -31,9 +31,10 @@ def layout(count=8):
 
 
 class Platform:
-    def __init__(self,work,count=8,trace=True):
+    def __init__(self,work,count=8,trace=True,runtime_dir=None):
         self.work=Path(work).resolve();self.work.mkdir(parents=True,exist_ok=True)
         self.spec=layout(count);self.cards=self.spec['cards'];self.count=count
+        self.runtime_dir=Path(runtime_dir) if runtime_dir else HERE.parent/'p2/runtime'
         self.trace=trace;self.services={};self.qemu=None;self.sockets=[]
         self.start_time=time.monotonic();self.usage_start=resource.getrusage(resource.RUSAGE_CHILDREN)
         self.counts=[0]*count;self.qt=self.qm=self.mf=None
@@ -43,7 +44,7 @@ class Platform:
         self.spec['firmware_hart_per_backend']=0
         (self.work/'platform.json').write_text(json.dumps(self.spec,indent=2))
     def prepare(self):
-        runtime=HERE.parent/'p2/runtime'
+        runtime=self.runtime_dir
         subprocess.run(['make','-C',str(runtime)],check=True,stdout=subprocess.PIPE)
         inputs=self.work/'inputs';inputs.mkdir()
         for name in ('mcu.bin','npu.bin'):shutil.copy2(runtime/name,inputs/name)

@@ -19,6 +19,7 @@ typedef struct P2State {
     bool enabled, trace;
     P2Channel ch[P2_CHANNELS];
     uint32_t atu[32][9], inbound[32][9];
+    unsigned proxy_done;
     uint32_t test_hold; /* qtest-only deterministic in-flight cancellation */
     uint64_t requests, parents, bytes, faults, mapping_version;
 } P2State;

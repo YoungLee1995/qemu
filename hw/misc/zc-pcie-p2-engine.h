@@ -41,6 +41,7 @@ static bool p2_translate(ZCP1State *s, uint64_t addr, uint64_t len,
 }
 
 #include "zc-pcie-p3-route.h"
+#include "zc-pcie-p5-engine.h"
 
 /*
  * The source function selects the DMA AddressSpace, hence the requester/domain.
@@ -71,6 +72,8 @@ static bool p2_host(ZCP1State *s, uint64_t iova, void *buf, size_t len,
     if (s->p3 && channel < 0) {
         uint64_t task = p1_load(control(s) + 64);
         if (!s->proxy_pinned || s->proxy_task != task) {
+            s->p2.proxy_done = 0;
+            memset(&s->p5.slot[P2_CHANNELS], 0, sizeof(P5Slot));
             s->proxy_task = task;
             s->proxy_signature = p3_signature(s, -1);
             s->proxy_pinned = true;
@@ -148,6 +151,7 @@ static void p2_irq(ZCP1State *s)
 static void p2_finish(ZCP1State *s, P2Channel *c, bool error)
 {
     c->busy = false;
+    memset(&s->p5.slot[c - s->p2.ch], 0, sizeof(P5Slot));
     c->r[0x80 / 4] = 3; /* stopped */
     c->r[0x84 / 4] |= error ? 4 : 1;
     p2_irq(s);
@@ -165,6 +169,8 @@ static void p2_cancel_channels(ZCP1State *s)
 static void p2_cancel(ZCP1State *s)
 {
     s->p2.test_hold = 0;
+    p5_cancel(s);
+    s->p2.proxy_done = 0;
     p2_cancel_channels(s);
     /* Queue response 2 means rejected; producer cannot reuse until response. */
     uint32_t *q = s->mailbox + P2_QUEUE / 4;
@@ -304,6 +310,7 @@ static void p2_channel_tick(ZCP1State *s, unsigned idx)
     uint8_t *local;
     uint64_t remote, iova;
     unsigned n;
+    int admission;
     uint8_t buf[4096];
     if (!c->busy) {
         return;
@@ -361,6 +368,14 @@ static void p2_channel_tick(ZCP1State *s, unsigned idx)
         return;
     }
     n = MIN(c->remaining, 4096 - (iova & 4095));
+    admission = p5_admit(s, idx, iova, n, !read);
+    if (!admission) {
+        return;
+    }
+    if (admission < 0) {
+        p2_finish(s, c, true);
+        return;
+    }
     if (!read) {
         memcpy(buf, local, n);
     }
@@ -403,11 +418,15 @@ static void p2_proxy_tick(ZCP1State *s)
     if (s->p3 && (kind == 1 || kind == 2)) {
         uint64_t task = p1_load(control(s) + 64);
         if (!s->proxy_pinned || s->proxy_task != task) {
+            s->p2.proxy_done = 0;
+            memset(&s->p5.slot[P2_CHANNELS], 0, sizeof(P5Slot));
             s->proxy_task = task;
             s->proxy_signature = p3_signature(s, -1);
             s->proxy_pinned = true;
         }
         if (s->proxy_signature != p3_signature(s, -1)) {
+            s->p2.proxy_done = 0;
+            memset(&s->p5.slot[P2_CHANNELS], 0, sizeof(P5Slot));
             q[6] = 1;
             p1_store(q, 2);
             return;
@@ -432,10 +451,20 @@ static void p2_proxy_tick(ZCP1State *s)
         addr >= 0x18000000000ULL && addr < 0x20000000000ULL &&
         len <= 0x20000000000ULL - addr &&
         p2_translate(s, addr, len, &iova)) {
-        unsigned done = 0;
+        unsigned done = s->p2.proxy_done;
         okay = true;
         while (done < len) {
             unsigned n = MIN(len - done, 4096 - ((iova + done) & 4095));
+            int admission = p5_admit(s, P2_CHANNELS, iova + done,
+                                      n, kind == 2);
+            if (!admission) {
+                s->p2.proxy_done = done;
+                return;
+            }
+            if (admission < 0) {
+                okay = false;
+                break;
+            }
             if (!p2_host(s, iova + done, data + done, n, kind == 2,
                          "model_proxy", addr + done, -1,
                          ((uint64_t)q[9] << 32) | q[8])) {
@@ -456,6 +485,8 @@ static void p2_proxy_tick(ZCP1State *s)
         }
         okay = true;
     }
+    s->p2.proxy_done = 0;
+    memset(&s->p5.slot[P2_CHANNELS], 0, sizeof(P5Slot));
     q[6] = okay ? 0 : 1;
     p1_store(q, 2);
 }
