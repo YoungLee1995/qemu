@@ -4,6 +4,10 @@
 
 P5 以现有 `pcie-demo`、`host-demo`、simulator 和任务数据为全部输入。通信接口、测试和 runtime 增量由本项目开发，不再等待工具链提供额外任务协议或通信库。本目录用于内部软件仿真实验。最终软件门禁已通过：`p5_full_exit=true`，397 项 P5 测试/检查及完整历史回归通过，77 项摘要一致。
 
+## Linux 二进制交付
+
+`run_linux.py` 现在自动检测 simu 源码：有源码则编译并更新 `../simu/`，无源码则从已有包运行。包同时携带内核/来宾镜像，交付时无需 simulator/experiments 目录。用 `--prepare-only` 仅生成包，用 `--runtime prebuilt` 强制复用。生成包不随普通 Git push 上传，需单独随 QEMU 交付。详见 [运行包说明](../simu/README.md)。其他历史验收入口保留原有依赖。
+
 ## 运行
 
 从工作区根目录运行完整验收：

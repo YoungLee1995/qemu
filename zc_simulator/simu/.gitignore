@@ -1,0 +1,5 @@
+# Generated binary distributions: ship this directory/archive explicitly.
+/runtime-*/
+/current
+/.build-*/
+/.current-*
