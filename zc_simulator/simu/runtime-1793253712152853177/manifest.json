@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "scope": "P5-Linux-2-and-8-card-runtime",
+  "created_utc": "2026-10-29T06:01:52Z",
+  "files": {
+    "bin/sm_system.cfg": "b03a21d1203d326af1fc418e0e40ae3c045106426beabf3b3b5256fd73dea17e",
+    "bin/spike": "d20a685c3ea7b510fad9c50c1c641fbdedda5525a94db9caae059ff672ab16a5",
+    "fabric/fabric.py": "4d28007b6510d3bc712156d46ad0d0f5898a763a1ffe76de99737d6b868e7b52",
+    "fabric/fabric_service.py": "9335e84540da8b3f8e8bd078ea40b796afd3b5d8529575e1f10c0efa678f52be",
+    "fabric/gen4-eight.json": "60fccba220334c8364634ca6c00345d20514684dca989eb4dc6eb8ac0c7eeca9",
+    "guest/initramfs-2.cpio.gz": "128203f7feab52d04d7f578f2301b0f71e6dab51d7830fd27aef1c2edc78d62f",
+    "guest/initramfs-8.cpio.gz": "9ef1c7b8a304f2b1b3bbe64384d73185bf957002490417adb7ece96c1adf1c2b",
+    "guest/vmlinuz-lts": "9d6eff6e7bcd5f5fba623f7a44c565ca6914da2b91110a8dc72a3a63cb088693",
+    "images/firmware.riscv": "8843e13718ac006852e532a4a78906a73c3978430288e0e128225f88edd25a23",
+    "images/mcu.bin": "2840450d52fd5bff07ca4857e0c01db2de294e1f37657bdc4fcb3a0f69037afd",
+    "images/npu.bin": "2fd518df1efee213c3af910f7c63a43ff4d32c6e5b82c7ad3a71088dfaa497e6",
+    "service/protocol.py": "c58c65f9bba7f121f87042f0f4b75ee4c9866ec373103f5e845275c410d2e704",
+    "service/service.py": "f69e2e278cabc4d3c59044b548e282f3b663b72a4bcff64ba3ab1ba92204000c"
+  }
+}

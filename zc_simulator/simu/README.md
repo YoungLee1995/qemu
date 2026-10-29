@@ -63,13 +63,15 @@ python3 /对方路径/QEMU目录/zc_simulator/p5/run_linux.py --cards 8
 
 程序按脚本位置寻找 QEMU 和运行包，QEMU 目录不要求命名为 `qemu`。每轮证据保存到该项目 `zc_simulator/p5/evidence/linux-*`，需要目录可写。
 
-**生成载荷已 ignore，普通 `git add . && git push` 不会上传它。** 如果通过 Git 交付源码，应额外交付运行包，例如在开发机工作区根目录执行：
+**当前已发布的运行包和 `current` 链接随 Git 仓库交付，克隆后无需另取压缩包。** 其他本地历史/新构建版本默认仍 ignore。以后重新生成包并准备发布时，必须同时提交新的目标目录和链接，不能只提交链接：
 
 ```bash
-tar -C qemu/zc_simulator -czf /tmp/zc-simu-runtime.tar.gz simu
+# 在 QEMU 仓库根目录执行；仅在确认要发布新包时使用
+simu_release=$(readlink zc_simulator/simu/current)
+git add -f "zc_simulator/simu/$simu_release" zc_simulator/simu/current
 ```
 
-对方解压到其 QEMU 项目的 `zc_simulator/`。这会包含本地所有保留的 runtime 版本；交付前可只保留使用中的版本。不要只传 `current` 链接，也不要只传 README。
+将 `simu/.gitignore` 中的已发布版本例外同步为新目录名即可使后续普通修改可跟踪。也可继续使用 tar 交付整个 `simu/` 目录。运行包摘要应在提交前通过 `run_linux.py --runtime prebuilt --prepare-only` 校验。
 
 ## 运行环境和范围
 

@@ -6,7 +6,7 @@ P5 以现有 `pcie-demo`、`host-demo`、simulator 和任务数据为全部输�
 
 ## Linux 二进制交付
 
-`run_linux.py` 现在自动检测 simu 源码：有源码则编译并更新 `../simu/`，无源码则从已有包运行。包同时携带内核/来宾镜像，交付时无需 simulator/experiments 目录。用 `--prepare-only` 仅生成包，用 `--runtime prebuilt` 强制复用。生成包不随普通 Git push 上传，需单独随 QEMU 交付。详见 [运行包说明](../simu/README.md)。其他历史验收入口保留原有依赖。
+`run_linux.py` 现在自动检测 simu 源码：有源码则编译并更新 `../simu/`，无源码则从已有包运行。包同时携带内核/来宾镜像，交付时无需 simulator/experiments 目录。用 `--prepare-only` 仅生成包，用 `--runtime prebuilt` 强制复用。当前已发布运行包已纳入 Git，克隆即可取得；以后新生成版本发布时需同时提交包目录和 `current` 链接。详见 [运行包说明](../simu/README.md)。其他历史验收入口保留原有依赖。
 
 ## 运行
 

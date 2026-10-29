@@ -1,5 +1,5 @@
-# Generated binary distributions: ship this directory/archive explicitly.
+# Keep scratch builds and unpublished historical runtimes local.
 /runtime-*/
-/current
+!/runtime-1793253712152853177/
 /.build-*/
 /.current-*

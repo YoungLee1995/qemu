@@ -1,0 +1,20 @@
+{
+  "cards": 8,
+  "mps": 256,
+  "mrrs": 512,
+  "tags": 8,
+  "ordering": "pci_relaxed",
+  "default": {
+    "generation": 4,
+    "lanes": 16,
+    "latency_ns": 100,
+    "header_credits": 8,
+    "data_credits": 256,
+    "credit_return_ns": 100,
+    "arbitration": "round_robin"
+  },
+  "links": {
+    "host:up": {"generation": 4, "lanes": 8, "latency_ns": 150},
+    "host:down": {"generation": 4, "lanes": 8, "latency_ns": 150}
+  }
+}
