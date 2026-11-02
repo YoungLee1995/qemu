@@ -20,6 +20,19 @@ file zc_simulator/tools/p5/runtime/mcu.elf zc_simulator/tools/p5/runtime/mcu.bin
 
 ## 推荐的工具链交付目录
 
+**`my-mcu/` 是建议给工具链同事的新工程起的示例名称，当前仓库没有这个目录。** 本项目实际用于桌面/P5 的 MCU 工程是 `zc_simulator/tools/p5/runtime/`，不是下面最小模板。对应文件如下（路径均相对 QEMU 仓库根目录）：
+
+| 示例角色 | 当前项目实际文件 |
+| --- | --- |
+| Makefile | `zc_simulator/tools/p5/runtime/Makefile` |
+| MCU 业务入口 | `zc_simulator/tools/p5/runtime/runtime.c`，构建时定义 `MCU` |
+| 启动代码 | `zc_simulator/p2/runtime/start.S` |
+| 链接脚本 | `zc_simulator/p2/runtime/link.ld` |
+
+现有 P5 工程通过 Makefile 引用仓库内公共启动/链接文件，并非一个可以单独拷走的 `my-mcu/` 自包含目录；克隆本 QEMU 仓库后，在根目录执行本教程开头的 `make -C zc_simulator/tools/p5/runtime ... mcu.bin` 即可构建。生成的 `mcu.elf` 和 `mcu.bin` 位于该 runtime 目录内。
+
+若只想运行教程下面的最小模板，按后续命令自行创建 `zc_simulator/desktop/state/mcu-dev/` 并保存四份文件；它不是现有 P5 MCU 工程，也不是新克隆自带的源码目录。
+
 工具链同事应提交或提供一个自包含目录，至少包含：
 
 ```text
