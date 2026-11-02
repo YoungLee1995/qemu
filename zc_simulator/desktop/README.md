@@ -93,13 +93,13 @@ python3 zc_simulator/desktop/prepare.py
 
 桌面基础八卡测试程序会在初始化时编译，无需复制旧 evidence 中的二进制。文档提到的完整 `p5-guest-test-8` 属于历史测试产物，不是桌面启动所必需，也不会由这里的初始化脚本生成。
 
-### 5. 终端 A：启动 Ubuntu，并保持运行
+### 5. 终端 A：启动 Ubuntu
 
 ```sh
 python3 zc_simulator/desktop/desktop.py --cards 8
 ```
 
-此命令启动 QEMU、Spike 后端和 fabric，并生成 `state/active.json`，输出中包含 `qemu_pid`、`work`、SSH/RDP 端口。它会一直占用终端 A；不要按 Ctrl+C，也不要等它退出后才执行下一步。它的串口写入日志，不会在终端 A 显示 Ubuntu 登录 shell。
+此命令启动 QEMU、Spike 后端和 fabric，并生成 `state/active.json`，输出中包含 `qemu_pid`、`work`、SSH/RDP 端口。它默认在终端 A 前台运行；不要等它退出后才执行下一步。可以另开终端，也可以关闭启动终端，虚拟机继续运行。Ctrl+Z 会被忽略；Ctrl+C 仍会终止启动器，正常关机请使用 `control.py stop`。它的串口写入日志，不会在终端 A 显示 Ubuntu 登录 shell。
 
 启动器会自动轮询真实 SSH 会话、就绪标记、指定数量的驱动节点和 xrdp 服务。等待期间每 30 秒提示一次；全部通过后，终端 A 明确打印：
 
@@ -107,7 +107,7 @@ python3 zc_simulator/desktop/desktop.py --cards 8
 DESKTOP_READY：Ubuntu 已就绪（SSH、8 个设备节点、xrdp）。
 请在另一个宿主终端执行：
   python3 zc_simulator/desktop/terminal.py
-当前终端请保持运行。
+可关闭当前终端，虚拟机继续运行。
 ```
 
 看到这条提示后即可登录。仅打印 PID/端口的 JSON 不代表就绪。检查失败不会关闭 VM，启动器会继续等待；SSH 检查输出保存在本次 `work/readiness.log`。该提示是启动阶段检查结果，之后仍可用 `control.py status` 检查实时状态。若使用自定义 `ZC_DESKTOP_STATE`，登录终端也必须设置相同值。
@@ -178,11 +178,13 @@ python3 zc_simulator/desktop/control.py stop
 
 命令提示“已发送”表示请求已提交，并不表示关机完成；等待终端 A 的启动进程退出后再操作磁盘。
 
-也可以在终端 A **按 Ctrl+Z 正常关机**：启动器会捕获该按键，通过 QMP 请求 Ubuntu 关机，等待 QEMU 退出后回收后端和 fabric。它不会暂停进程，也不会立即强杀 VM。若按键发生在 Ubuntu 早期启动阶段，启动器会每 15 秒重新发送正常关机请求，直到来宾能够处理并退出。看到“收到 Ctrl+Z”后等待原命令返回 shell；若请求失败会明确报错，可重按 Ctrl+Z 或使用 `control.py stop` 重试。
+**Ctrl+Z 和关闭启动终端都不会关机。** 新版启动器忽略 Ctrl+Z；关闭终端后，QEMU、Spike、fabric 和监督进程继续运行，后续启动提示写到本次 `work/supervisor.log`。重新打开终端后可以直接执行 `control.py status`、`terminal.py` 或 `control.py stop`，不要重复启动第二台 VM。
 
-该行为在更新后的 `desktop.py` 下次启动时生效。旧版已运行的进程按 Ctrl+Z 仍可能被暂停；此时在原终端用 `jobs -l` 查看作业，再用 `fg %作业号` 恢复后执行关机。
+这只处理终端挂断和 Ctrl+Z；停止容器、重启宿主机或强杀进程仍会终止虚拟机。Ctrl+C 仍保留终止启动器的行为，需要正常关机时请使用上面的 `control.py stop`。
 
-关机后等待终端 A 的启动进程退出。下次使用不用重新下载镜像或执行 `prepare.py`，直接重新启动（终端 A 前台保持运行），再在终端 B 检查状态并执行 `terminal.py`：
+更新仅对下次运行的启动器生效。旧版进程按 Ctrl+Z 可能暂停或关机；已暂停时在原终端用 `jobs -l` 和 `fg %作业号` 恢复，再正常关机后启动新版。
+
+关机后等待原启动进程退出（关闭过终端时可检查 `active.json` 中的 `stopped` 为 true）。下次使用不用重新下载镜像或执行 `prepare.py`，直接重新启动（终端 A 前台保持运行），再在终端 B 检查状态并执行 `terminal.py`：
 
 ```sh
 python3 zc_simulator/desktop/desktop.py --cards 8
@@ -236,7 +238,7 @@ ttyd 项目与构建说明：<https://github.com/tsl0922/ttyd>。浏览器终端
 | --- | --- |
 | `terminal.py` 找不到 `state/active.json` | 尚未运行 `desktop.py`，或两个终端的 `ZC_DESKTOP_STATE` 不一致；按首次流程第 5 步启动 |
 | `desktop.py` 提示缺少 qcow2 / seed | 先下载基础镜像并执行 `prepare.py`，不是直接执行连接脚本 |
-| SSH banner exchange 超时，QEMU 的 `ps` 状态为 `T` | 旧版进程可能被暂停；在原终端用 `jobs -l` 和 `fg %作业号` 恢复。新版 `desktop.py` 将 Ctrl+Z 转为正常关机 |
+| SSH banner exchange 超时，QEMU 的 `ps` 状态为 `T` | 旧版进程可能被暂停；在原终端用 `jobs -l` 和 `fg %作业号` 恢复。新版 `desktop.py` 忽略 Ctrl+Z，关闭终端后也继续运行 |
 | SSH connection refused / 超时 | 检查终端 A 是否仍运行；首次启动等待 SSH 就绪，再检查本次 `serial.log` 和 `qemu.log` |
 | SSH 能登录，但驱动节点或桌面服务缺失 | 首次安装尚未完成或失败；检查 `/var/log/t100-desktop-setup.log` 与来宾网络 |
 | 端口占用或磁盘被锁定 | 检查是否已有 VM 使用相同磁盘和端口；已有 VM 直接连接，不要重复启动 |

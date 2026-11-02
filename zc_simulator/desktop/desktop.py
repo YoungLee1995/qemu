@@ -12,7 +12,6 @@ import tempfile
 import time
 
 from paths import REPO, SOURCE, STATE
-from control import powerdown
 
 HERE = STATE
 sys.path.insert(0, str(REPO / 'zc_simulator/p5'))
@@ -73,12 +72,26 @@ def main():
         (work / 'platform.json').write_text(json.dumps(p.spec, indent=2))
         (work / 'bundle.json').write_text(json.dumps(dict(path=str(bundle), manifest=manifest), indent=2))
         stopping = False
-        powerdown_requested = False
+        supervisor_log = (work / 'supervisor.log').open('a', buffering=1)
 
-        def request_powerdown(signum, frame):
-            nonlocal powerdown_requested
-            powerdown_requested = True
-            os.write(2, '\n收到 Ctrl+Z，正在请求 Ubuntu 正常关机，请等待启动器退出。\n'.encode())
+        def detach_console(signum=None, frame=None):
+            # A closed PTY may raise EIO on future writes even with SIGHUP
+            # ignored. Redirect the actual descriptors, including stderr.
+            os.dup2(supervisor_log.fileno(), 1)
+            os.dup2(supervisor_log.fileno(), 2)
+
+        def announce(message, **kwargs):
+            try:
+                print(message, **kwargs)
+            except OSError:
+                detach_console()
+                print(message, **kwargs)
+
+        def ignore_suspend(signum, frame):
+            try:
+                os.write(2, '\nCtrl+Z 已忽略，虚拟机继续运行；关机请执行 control.py stop。\n'.encode())
+            except OSError:
+                detach_console()
 
         def stop(signum, frame):
             nonlocal stopping
@@ -92,6 +105,7 @@ def main():
         # Spike children) and QEMU must ignore terminal-generated SIGTSTP too.
         # Install the supervisor's explanatory handler only after those forks.
         signal.signal(signal.SIGTSTP, signal.SIG_IGN)
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
         sockets = tempfile.TemporaryDirectory(prefix="zc-desktop-")
         probe = None
         try:
@@ -121,40 +135,27 @@ def main():
             (work / 'qemu-command.json').write_text(json.dumps(command, indent=2))
             with (work / 'qemu.log').open('w') as log:
                 p.qemu = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
-            signal.signal(signal.SIGTSTP, request_powerdown)
+            signal.signal(signal.SIGTSTP, ignore_suspend)
+            signal.signal(signal.SIGHUP, detach_console)
             state = dict(supervisor_pid=os.getpid(), qemu_pid=p.qemu.pid,
                          work=str(work), ssh_port=args.ssh_port, rdp_port=args.rdp_port,
                          cards=args.cards, disk=str(disk), bind=args.bind, qmp=str(qmp))
             (HERE / 'active.json').write_text(json.dumps(state, indent=2))
-            print(json.dumps(state, indent=2), flush=True)
-            print('当前终端保持运行；按 Ctrl+Z 将请求正常关机，不会挂起虚拟机。', flush=True)
-            print('正在等待 Ubuntu SSH、设备驱动和 xrdp 就绪；首次启动需要联网安装软件。', flush=True)
-            print(f'启动日志：{work / "serial.log"}', flush=True)
+            announce(json.dumps(state, indent=2), flush=True)
+            announce('Ctrl+Z 已忽略；关闭终端后虚拟机继续运行。正常关机请执行 control.py stop。', flush=True)
+            announce('正在等待 Ubuntu SSH、设备驱动和 xrdp 就绪；首次启动需要联网安装软件。', flush=True)
+            announce(f'启动日志：{work / "serial.log"}', flush=True)
             ready = False
             next_probe = 0
             next_notice = time.monotonic() + 30
             probe_started = 0
-            powerdown_sent = False
-            next_powerdown = 0
             while p.qemu.poll() is None:
                 if any(proc.poll() is not None for proc in p.services.values()):
                     raise RuntimeError('a backend service exited; see run logs')
                 if p.fabric_process.poll() is not None:
                     raise RuntimeError('fabric service exited; see run logs')
                 now = time.monotonic()
-                if powerdown_requested or (powerdown_sent and now >= next_powerdown):
-                    powerdown_requested = False
-                    try:
-                        powerdown(state)
-                        powerdown_sent = True
-                        # Early boot may not yet handle the ACPI button. Keep
-                        # requesting graceful shutdown; never freeze/kill it.
-                        next_powerdown = time.monotonic() + 15
-                    except (OSError, ValueError, KeyError, RuntimeError) as exc:
-                        next_powerdown = time.monotonic() + 15
-                        print(f'正常关机请求失败：{exc}；VM 继续运行，可重按 Ctrl+Z 或用 control.py stop 重试。',
-                              flush=True)
-                if not ready and not powerdown_sent:
+                if not ready:
                     if probe is not None:
                         result = probe.poll()
                         if result is None and now - probe_started > 15:
@@ -168,17 +169,17 @@ def main():
                                 ready = True
                                 state['ready'] = True
                                 (HERE / 'active.json').write_text(json.dumps(state, indent=2))
-                                print(f'\nDESKTOP_READY：Ubuntu 已就绪（SSH、{args.cards} 个设备节点、xrdp）。\n'
+                                announce(f'\nDESKTOP_READY：Ubuntu 已就绪（SSH、{args.cards} 个设备节点、xrdp）。\n'
                                       '请在另一个宿主终端执行：\n'
                                       '  python3 zc_simulator/desktop/terminal.py\n'
-                                      '当前终端请保持运行。', flush=True)
+                                      '可关闭当前终端，虚拟机继续运行。', flush=True)
                     if not ready and probe is None and now >= next_probe:
                         with (work / 'readiness.log').open('a') as log:
                             probe = subprocess.Popen(readiness_command(state), stdout=log, stderr=log,
                                                      start_new_session=True)
                         probe_started = now
                     if not ready and now >= next_notice:
-                        print('仍在等待 Ubuntu 就绪；可查看 serial.log 和 readiness.log。', flush=True)
+                        announce('仍在等待 Ubuntu 就绪；可查看 serial.log 和 readiness.log。', flush=True)
                         next_notice = now + 30
                 time.sleep(1)
             if p.qemu.returncode and not stopping:
@@ -196,6 +197,7 @@ def main():
                 state['stopped'] = True
                 state['ready'] = False
                 state_path.write_text(json.dumps(state, indent=2))
+            supervisor_log.close()
 
 
 if __name__ == '__main__':
