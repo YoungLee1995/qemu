@@ -38,7 +38,7 @@ sudo /opt/t100/guest-cluster
 
 进入 `t100@t100-eight-card:~$` 后，按 [登录 Ubuntu 后的逐步操作](操作教程.md) 完成设备检查、八卡测试、自定义 Host 任务及原版 Host demo 交互。设备侧开发同事另见 [MCU mcu.bin 编译教程](MCU编译教程.md)，其中包含可直接构建的最小裸机工程。
 
-选卡、指定 Host 脚本及独立 simulator 的 MCU-only/NPU-only/两者启动方式见 [指定设备与 MCU/NPU 运行说明](指定设备与MCU-NPU运行说明.md)。desktop 当前尚无按卡热加载任意 MCU/NPU 程序的统一命令。
+选卡、指定 Host 脚本及仓库内发布包的 MCU-only/NPU-only/两者启动方式见 [指定设备与 MCU/NPU 运行说明](指定设备与MCU-NPU运行说明.md)。desktop 当前尚无按卡热加载任意 MCU/NPU 程序的统一命令。
 
 ## 浏览器终端
 
@@ -89,7 +89,7 @@ cat zc_simulator/desktop/state/credentials.json
 
 ```sh
 sudo apt update
-sudo apt install -y qemu-utils genisoimage openssh-client curl ca-certificates
+sudo apt install -y qemu-utils genisoimage openssh-client openssl curl ca-certificates
 ```
 
 3. 下载 Ubuntu 官方 cloud image 与对应校验清单，保留官方文件名以校验：
@@ -113,7 +113,7 @@ python3 zc_simulator/desktop/prepare.py
 python3 zc_simulator/desktop/desktop.py --cards 8
 ```
 
-`prepare.py` 使用 Python 的 `crypt` 模块，请用 Python 3.10–3.12；QEMU 构建可单独使用 Python 3.12。初始化生成本地密钥、随机密码、系统盘和 cloud-init。首次 Ubuntu 启动需要联网安装 XFCE、xrdp、内核头文件，编译本目录的驱动源码和仓库 `p4/guest-cluster.c`。用 `control.py status` 检查，出现 `T100_DESKTOP_READY` 表示桌面准备完成。
+`prepare.py` 使用系统 OpenSSL 生成密码摘要，运行脚本可使用 Python 3.10+；QEMU 构建使用 Python 3.12+。初始化生成本地密钥、随机密码、系统盘和 cloud-init。首次 Ubuntu 启动需要联网安装 XFCE、xrdp、内核头文件，编译本目录的驱动源码和仓库 `p4/guest-cluster.c`。用 `control.py status` 检查，出现 `T100_DESKTOP_READY` 表示桌面准备完成。
 
 桌面基础八卡测试程序会在初始化时编译，无需复制旧 evidence 中的二进制。文档提到的完整 `p5-guest-test-8` 属于历史测试产物，不是桌面启动所必需，也不会由这里的初始化脚本生成。
 
@@ -133,7 +133,7 @@ ttyd 项目与构建说明：<https://github.com/tsl0922/ttyd>。浏览器终端
 
 ## 验证与开发
 
-原版 `simulator/host-demo` 可通过 `python3 zc_simulator/desktop/host_demo.py` 在运行中的 VM 内编译并检查八卡，追加 `--interactive` 进入命令行。原版 `pcie-demo` 目前缺少 SDK 与构建文件，未生成替代 MCU；本次文件往返测试超时。具体证据、产物位置和运行方法见 [原版 demo 接入实测](DEMO_VALIDATION.md)。
+本仓库 `zc_simulator/host-demo` 可通过 `python3 zc_simulator/desktop/host_demo.py` 在运行中的 VM 内编译并检查八卡，追加 `--interactive` 进入命令行。原版 `pcie-demo` 目前缺少 SDK 与构建文件，未生成替代 MCU；本次文件往返测试超时。具体证据、产物位置和运行方法见 [原版 demo 接入实测](DEMO_VALIDATION.md)。
 
 登录 Ubuntu 后的逐步操作见 [操作教程](操作教程.md)；工具链同事编译 RISC-V 裸机 `mcu.bin` 的目录结构、Makefile、地址约定和加载验证见 [MCU 编译教程](MCU编译教程.md)。
 

@@ -13,38 +13,14 @@ from backend import Platform, DMAAdapter, Fabric, LinkConfig, Communication
 HERE = Path(__file__).resolve().parent
 
 
-class P5Platform(Platform):
-    def __init__(self,*args,**kwargs):
-        from backend import ROOT
-        kwargs['runtime_dir']=ROOT/'simulator/tools/p5/runtime'
-        super().__init__(*args,**kwargs)
-        self.fabric_socket=Path(f'/tmp/zc-p5-fabric-{os.getpid()}-{time.time_ns()%1000000}.sock')
-        self.fabric_process=None
-    def prepare(self):
-        super().prepare()
-        self.start_fabric()
-    def start_fabric(self):
-        from backend import ROOT
-        cfg=json.loads((ROOT/'simulator/tools/p5/profiles/gen4-eight.json').read_text())
-        cfg['cards']=self.count
-        (self.work/'fabric-config.json').write_text(json.dumps(cfg,indent=2))
-        with (self.work/'fabric-service.log').open('w') as log:
-            self.fabric_process=subprocess.Popen([sys.executable,str(ROOT/'simulator/tools/p5/fabric_service.py'),
-                '--socket',str(self.fabric_socket),'--config',str(self.work/'fabric-config.json'),
-                '--out',str(self.work/'live-fabric.json')],stdout=log,stderr=subprocess.STDOUT)
-        end=time.monotonic()+10
-        while not self.fabric_socket.exists() and time.monotonic()<end:
-            if self.fabric_process.poll() is not None:raise RuntimeError('fabric service failed')
-            time.sleep(.005)
-        if not self.fabric_socket.exists():raise TimeoutError('fabric service socket')
-    def device_args(self):
-        return [a.replace('p4-isolation=on,', f'p4-isolation=on,p5-flr=on,p5-fabric-socket={self.fabric_socket},') for a in super().device_args()]
-    def close(self):
-        try:super().close()
-        finally:
-            from cluster_platform import stop
-            stop(self.fabric_process)
-            self.fabric_socket.unlink(missing_ok=True)
+from linux_bundle import BundlePlatform, validate_bundle
+
+
+class P5Platform(BundlePlatform):
+    def __init__(self, work, count=8):
+        bundle = HERE.parent / 'simu/current'
+        validate_bundle(bundle)
+        super().__init__(work, count, bundle)
 
 
 def main():

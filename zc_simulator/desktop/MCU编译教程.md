@@ -4,27 +4,19 @@
 
 这里的 `mcu.bin` 是 simulator 的 RISC-V 裸机 MCU 镜像，运行在设备侧 hart 1，默认链接地址是 `0x40000000`。它不是 Ubuntu 的 x86-64 程序，也不是 Host demo 的 `.bin` 后缀 ELF。Host demo 应编译成 Linux ELF；MCU demo 才通过 `objcopy -O binary` 生成裸二进制。
 
-当前仓库已经能完整构建的是 P5 参考 runtime：
+当前 P5 参考 runtime 源码已随 QEMU 放在 `zc_simulator/tools/p5/runtime/`，其启动和链接文件来自同仓库 `zc_simulator/p2/runtime/`。无需克隆其他项目。
 
-以下命令均在**外层开发容器**执行，不在 `t100@t100-eight-card` 的 Ubuntu shell 中执行。下面的 `RISCV_PREFIX`/`PREFIX` 是编译器文件名前缀，最后的连字符需要保留。现有环境有 `/data/nuclei/gcc/bin/` 工具链；其他机器应安装支持以下 ISA 的 RISC-V 裸机 GCC，并调整前缀。
+以下命令在 QEMU 仓库根目录、外层开发容器执行（不在 Ubuntu 来宾中）：
 
 ```sh
-cd /workspace/GIT/pcie_qemu/simulator
-export RISCV_PREFIX=/data/nuclei/gcc/bin/riscv64-unknown-elf-
+export RISCV_PREFIX=riscv64-unknown-elf-
 "${RISCV_PREFIX}gcc" --version
-make -B -C tools/p5/runtime RISCV_PREFIX="$RISCV_PREFIX" mcu.bin
-file tools/p5/runtime/mcu.elf tools/p5/runtime/mcu.bin
-"${RISCV_PREFIX}readelf" -h tools/p5/runtime/mcu.elf
-"${RISCV_PREFIX}objdump" -h tools/p5/runtime/mcu.elf
+make -B -C zc_simulator/tools/p5/runtime RISCV_PREFIX="$RISCV_PREFIX" mcu.bin
+file zc_simulator/tools/p5/runtime/mcu.elf zc_simulator/tools/p5/runtime/mcu.bin
+"${RISCV_PREFIX}readelf" -h zc_simulator/tools/p5/runtime/mcu.elf
 ```
 
-如果编译器安装在 PATH 中，使用：
-
-```sh
-make -C tools/p5/runtime RISCV_PREFIX=riscv64-unknown-elf-
-```
-
-第一组命令显式指定 `mcu.bin`，仅生成 MCU ELF 和 BIN；不指定目标的 `make` 会同时生成 MCU/NPU 两套镜像。原 Makefile 没有 `clean` 目标，`-B` 表示强制重建。P5 Makefile 使用同级 QEMU 仓库的 `zc_simulator/p2/runtime/` 文件；两个仓库须保持当前的同级布局。MCU 目标只编译 `start.S + runtime.c`，并带 `-DMCU`。
+交叉编译器由工具链组提供或从其上游安装，需支持 `rv64gcv`；可把前缀改为实际编译器路径。构建 MCU 不会替换运行包。若修改了集成 runtime 或来宾测试，使用 `python3 zc_simulator/p5/run_linux.py --runtime source --cards 2` 从本仓库源码重建并发布；此命令复用包内 Spike、firmware、内核和适配驱动，不编译模型本身。
 
 ## 推荐的工具链交付目录
 
@@ -43,8 +35,8 @@ my-mcu/
 下面给出一套可以直接构建的最小工程。它只用于验证编译、链接和启动约定，**不实现 PCIe/IPC 或 P5 ready 协议**，不能代替现有 runtime 跑桌面测试。先创建可写目录：
 
 ```sh
-mkdir -p /workspace/GIT/pcie_qemu/qemu/zc_simulator/desktop/state/mcu-dev
-cd /workspace/GIT/pcie_qemu/qemu/zc_simulator/desktop/state/mcu-dev
+mkdir -p zc_simulator/desktop/state/mcu-dev
+cd zc_simulator/desktop/state/mcu-dev
 ```
 
 用编辑器分别创建下面四个文件。Makefile 命令行开头使用 Tab；复制后若遇到 `missing separator`，检查缩进。
@@ -52,7 +44,7 @@ cd /workspace/GIT/pcie_qemu/qemu/zc_simulator/desktop/state/mcu-dev
 `Makefile`：
 
 ```make
-PREFIX ?= /data/nuclei/gcc/bin/riscv64-unknown-elf-
+PREFIX ?= riscv64-unknown-elf-
 CC := $(PREFIX)gcc
 OBJCOPY := $(PREFIX)objcopy
 CFLAGS := -O2 -g -march=rv64gcv -mabi=lp64d -mcmodel=medany \
@@ -137,7 +129,7 @@ int main(void)
 编译并检查：
 
 ```sh
-export RISCV_PREFIX=/data/nuclei/gcc/bin/riscv64-unknown-elf-
+export RISCV_PREFIX=riscv64-unknown-elf-
 make PREFIX="$RISCV_PREFIX"
 file mcu.elf mcu.bin
 "${RISCV_PREFIX}readelf" -h mcu.elf
@@ -176,9 +168,9 @@ l1buf_output_num:0
 
 ## 重要的 ABI 和模型边界
 
-裸 MCU 程序必须自己完成启动、栈、BSS、必要的中断和 IPC 轮询。当前 runtime 的 MCU 入口还处理文件 DMA、CRC、结果回传以及 P5 任务协议；把它替换成只初始化 PCIe 的程序会使这些现有任务失效，除非新程序实现同一 ABI。
+裸 MCU 程序必须自己完成启动、栈、BSS、必要的中断和 IPC 轮询。本仓库 `zc_simulator/tools/p5/runtime/runtime.c` 的 MCU 入口处理文件 DMA、CRC、结果回传以及 P5 任务协议；把它替换成只初始化 PCIe 的程序会使这些现有任务失效，除非新程序实现同一 ABI。
 
-原 `simulator/pcie-demo/src/main.c` 是 BootROM 风格入口，会调用 efuse、AON/MCU 时钟复位、UART、UCIe、HSM、安全启动和大量未随目录提供的 SDK 头文件/库。当前实际编译会报 `soc.h: No such file or directory`。不能用空 stub 解决后就认为代码可在 simulator 运行。工具链同事需要提供完整匹配 SDK，或交付裁剪后的 PCIe/IPC 专用版本。
+旧芯片 BootROM demo（未纳入本仓库运行入口）是 BootROM 风格入口，会调用 efuse、AON/MCU 时钟复位、UART、UCIe、HSM、安全启动和大量未随目录提供的 SDK 头文件/库。当前实际编译会报 `soc.h: No such file or directory`。不能用空 stub 解决后就认为代码可在 simulator 运行。工具链同事需要提供完整匹配 SDK，或交付裁剪后的 PCIe/IPC 专用版本。
 
 模型只实现文档和源码中声明的 PCIe、BAR、DMA、IPC 地址及 P5 运行时行为；真实芯片上的 efuse、安全 HSM、UART、上电复位和所有未建模寄存器不能假定可用。代码应明确关闭或隔离这些路径，并提供 simulator 专用配置。
 

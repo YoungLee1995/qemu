@@ -20,9 +20,9 @@ my-task.c 的输入循环和校验循环可改为自己的数据生成和结果�
 
 - guest-cluster.c：当前基础八卡测试副本（来自 QEMU 仓库 zc_simulator/p4/guest-cluster.c）。
 - driver/ssv_test_driver.c：当前 Ubuntu demo 驱动源码，驱动负责 PCIe 绑定、DMA buffer 和 mmap 等。
-- guest-communication.c：P5 异步通信测试源码副本。它依赖构建时生成的 p4-base.c，以及外部 simulator/tools/p5/zc_comm.h。当前发布工作区缺少这个外部头文件，不能仅凭该 .c 独立重建 p5-guest-test-8；已发布的静态程序可直接运行。
-- 容器中 QEMU 仓库 zc_simulator/p2/runtime/runtime.c：早期 MCU/NPU 参考实现，可以阅读任务轮询、DMA、完成状态和 XOR 运算。不是当前发布 P5 固件的完整对应源码。
-- 当前工作区已提供同级 `simulator/tools/p5/runtime/runtime.c` 和 Makefile，可构建 P5 MCU/NPU 参考镜像；desktop 启动时仍从 `simu/current` 发布包取镜像，构建源码不会自动切换固件。修改 Device 行为需核对发布包与源码版本，并接入实验加载流程。外层 QEMU 仓库的 `zc_simulator/desktop/MCU编译教程.md` 提供编译命令和独立裸机工程示例。
+- P5 异步通信测试源码在仓库 `zc_simulator/p5/guest-communication.c`；头文件在 `zc_simulator/tools/p5/zc_comm.h`。使用 `run_linux.py --runtime source` 会从同仓库生成 `p4-base.c` 并编译，不依赖额外项目。
+- 参考 MCU/NPU runtime 在仓库 `zc_simulator/tools/p5/runtime/`。修改源码后需要重新构建并发布运行包，直接编辑源码不会改变当前运行的设备行为。
+- Host 命令行应用源码在仓库 `zc_simulator/host-demo/ssv_test_app.c`；通过 `desktop/host_demo.py` 安装到来宾。
 
 ## 本次验证
 

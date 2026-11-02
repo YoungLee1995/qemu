@@ -77,7 +77,7 @@ class Platform:
     def start(self):
         self.prepare()
         qt=Path(f'/tmp/zc-p4-{os.getpid()}-qt.sock');qm=Path(f'/tmp/zc-p4-{os.getpid()}-qm.sock');self.sockets.extend([qt,qm])
-        args=[str(QEMU),'-machine','q35','-m','512M','-accel','qtest','-display','none','-nodefaults',
+        args=[str(QEMU),'-L',str(HERE.parents[1]/'pc-bios'),'-machine','q35','-m','512M','-accel','qtest','-display','none','-nodefaults',
               '-global','q35-pcihost.pci-hole64-size=512G','-device','intel-iommu,caching-mode=on',
               '-qtest',f'unix:{qt},server=on,wait=off','-qtest-log','/dev/null',
               '-qmp',f'unix:{qm},server=on,wait=off']+self.device_args()

@@ -6,7 +6,6 @@ from pathlib import Path
 import struct
 import time
 import zlib
-from backend import ROOT
 from tasks import TaskPackage
 from run_communication import P5Platform
 HERE=Path(__file__).resolve().parent
@@ -16,13 +15,13 @@ FILE_BUFFER=0x4000400000
 def package(directory):
     directory.mkdir()
     data=bytearray(0x9200)
-    source=ROOT/'moe_bf16_sint4_33x29x34_fix/data'
+    source=HERE/'fixtures/tensor'
     for name,offset in [('act_l1.bin',0),('wgt_l1.bin',0x8400),('wgt_scale_l1.bin',0x8a00),('moe_index_l1.bin',0x9000)]:
         b=(source/name).read_bytes();data[offset:offset+len(b)]=b
     (directory/'input.bin').write_bytes(data)
-    (directory/'parameters.bin').write_bytes((ROOT/'simulator/riscv-tests/packet_runtime_test/tensor-args.bin').read_bytes())
-    (directory/'expected.bin').write_bytes((ROOT/'experiments/single_die_packet/run-20261027T100512-648188Z/moe/data/result_l1_spike.bin').read_bytes())
-    program=ROOT/'qemu/zc_simulator/p2/runtime/execute.S'
+    (directory/'parameters.bin').write_bytes((source/'parameters.bin').read_bytes())
+    (directory/'expected.bin').write_bytes((source/'expected.bin').read_bytes())
+    program=HERE.parent/'p2/runtime/execute.S'
     (directory/'program.S').write_bytes(program.read_bytes())
     spec=dict(schema=1,kind='existing-tensor',program='program.S',input='input.bin',parameters='parameters.bin',expected='expected.bin',
               note='Simulator-generated reproducible package from existing inputs; not a newly supplied production compiler ABI',

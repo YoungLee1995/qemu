@@ -5,7 +5,7 @@ import sys
 import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'p4'))
 from cluster_platform import Platform, ROOT
-sys.path.insert(0, str(ROOT / 'simulator/tools/p5'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/p5'))
 from fabric import Fabric, LinkConfig
 from communication import Communication
 

@@ -10,12 +10,13 @@ import tempfile
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'p4'))
-from cluster_platform import Platform, ROOT, digest, stop
+from cluster_platform import Platform, digest, stop
 from run_p1 import ISA, entry
 
 HERE = Path(__file__).resolve().parent
 BUNDLE = HERE.parent / 'simu'
-SIM = ROOT / 'simulator'
+REPO = HERE.parents[1]
+TOOLS = HERE.parent / 'tools'
 REQUIRED = (
     'bin/spike', 'bin/sm_system.cfg', 'images/firmware.riscv',
     'images/mcu.bin', 'images/npu.bin', 'service/service.py',
@@ -23,12 +24,6 @@ REQUIRED = (
     'fabric/gen4-eight.json', 'guest/vmlinuz-lts',
     'guest/initramfs-2.cpio.gz', 'guest/initramfs-8.cpio.gz',
 )
-
-
-def has_sources():
-    # A partial source checkout is a build error, not a reason to hide failures
-    # by selecting an old runtime. Runtime-only directories lack this marker.
-    return (SIM / 'riscv-isa-sim/spike_main/spike.cc').is_file()
 
 
 def validate_bundle(path):
@@ -46,16 +41,38 @@ def validate_bundle(path):
             raise ValueError('spike is not executable')
     except (OSError, KeyError, ValueError) as exc:
         raise RuntimeError(f'P5 runtime bundle invalid: {path}: {exc}. '
-                           'Rebuild it in a workspace containing simulator sources.') from exc
+                           'Restore zc_simulator/simu from Git and retry.') from exc
     return manifest
 
 
-def guest_image(stage, cards, module, work):
+def unpack_initramfs(archive, destination):
+    """Extract regular files/directories from the trusted, validated newc bundle."""
+    data = gzip.decompress(Path(archive).read_bytes())
+    offset = 0
+    while data[offset:offset+6] in (b'070701', b'070702'):
+        fields = [int(data[offset+6+i*8:offset+14+i*8], 16) for i in range(13)]
+        mode, size, namesize = fields[1], fields[6], fields[11]
+        name = data[offset+110:offset+110+namesize-1].decode()
+        offset = (offset+110+namesize+3) & ~3
+        payload = data[offset:offset+size]
+        offset = (offset+size+3) & ~3
+        if name == 'TRAILER!!!':
+            break
+        target = (destination / name).resolve()
+        if not target.is_relative_to(destination.resolve()):
+            raise ValueError('invalid initramfs path')
+        if mode & 0o170000 == 0o040000:
+            target.mkdir(parents=True, exist_ok=True)
+        elif mode & 0o170000 == 0o100000:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+            target.chmod(mode & 0o777)
+
+
+def guest_image(stage, cards, work):
     fs = work / f'rootfs-{cards}'
-    shutil.copytree(ROOT / 'experiments/qemu_stage1/rootfs', fs)
-    for name in ('dev', 'sys', 'proc', 'tmp'):
-        (fs / name).mkdir(exist_ok=True)
-    shutil.copy2(module / 'ssv_test_driver.ko', fs)
+    fs.mkdir()
+    unpack_initramfs(stage / f'guest/initramfs-{cards}.cpio.gz', fs)
     base = (HERE.parent / 'p4/guest-cluster.c').read_text().replace(
         '#define CARDS 8', f'#define CARDS {cards}')
     base = base.replace(
@@ -64,63 +81,38 @@ def guest_image(stage, cards, module, work):
     (work / 'p4-base.c').write_text(base)
     with (work / 'bundle-build.log').open('a') as log:
         subprocess.run(['gcc', '-static', '-O2', '-Wall', '-Wextra',
-                        '-I' + str(work), '-I' + str(SIM / 'tools/p5'),
+                        '-I' + str(work), '-I' + str(TOOLS / 'p5'),
                         str(HERE / 'guest-communication.c'), '-o', str(fs / 'guest-cluster')],
                        check=True, stdout=log, stderr=subprocess.STDOUT)
-    (fs / 'init').write_text('''#!/bin/busybox sh
-/bin/busybox mount -t proc proc /proc
-/bin/busybox mount -t sysfs sysfs /sys
-/bin/busybox mount -t devtmpfs devtmpfs /dev
-/bin/busybox insmod /ssv_test_driver.ko || exit 1
-/guest-cluster
-echo P4_GUEST_EXIT=$?
-/bin/busybox poweroff -f
-''')
-    (fs / 'init').chmod(0o755)
     archive = b''.join(entry(str(f.relative_to(fs)), b'' if f.is_dir() else f.read_bytes(),
                              f.stat().st_mode, i)
                        for i, f in enumerate(sorted(fs.rglob('*')), 1) if not f.is_symlink())
     (stage / f'guest/initramfs-{cards}.cpio.gz').write_bytes(
         gzip.compress(archive + entry('TRAILER!!!', b'', 0, 999999), mtime=0))
 
-
 def build_bundle(work):
     work = Path(work)
     BUNDLE.mkdir(exist_ok=True)
     # The existing published payload survives a failed compilation.
+    baseline = (BUNDLE / 'current').resolve()
+    validate_bundle(baseline)
     with (work / 'bundle-build.log').open('w') as log:
-        commands = [
-            ['make', '-C', str(SIM / 'riscv-isa-sim/build'), '-j8', 'spike'],
-            ['make', '-C', str(SIM / 'riscv-tests'), 'firmware.riscv'],
-            ['make', '-C', str(SIM / 'tools/p5/runtime')],
-            [sys.executable, str(HERE.parent / 'p1/build_host_demo.py')],
-        ]
-        for command in commands:
-            subprocess.run(command, check=True, stdout=log, stderr=subprocess.STDOUT, timeout=1800)
+        subprocess.run(['make', '-C', str(TOOLS / 'p5/runtime')], check=True,
+                       stdout=log, stderr=subprocess.STDOUT, timeout=1800)
     with tempfile.TemporaryDirectory(prefix='.build-', dir=BUNDLE) as tmp:
         stage = Path(tmp) / 'payload'
-        copies = {
-            'bin/spike': SIM / 'riscv-isa-sim/build/spike',
-            'bin/sm_system.cfg': SIM / 'riscv-isa-sim/smart/sm_system.cfg',
-            'images/firmware.riscv': SIM / 'riscv-tests/firmware.riscv',
-            'images/mcu.bin': SIM / 'tools/p5/runtime/mcu.bin',
-            'images/npu.bin': SIM / 'tools/p5/runtime/npu.bin',
-            'guest/vmlinuz-lts': ROOT / 'experiments/qemu_stage1/assets/vmlinuz-lts',
-        }
+        shutil.copytree(baseline, stage)
+        for name in ('mcu.bin', 'npu.bin'):
+            shutil.copy2(TOOLS / 'p5/runtime' / name, stage / 'images' / name)
         for name in ('service.py', 'protocol.py'):
-            copies['service/' + name] = SIM / 'tools/p1' / name
+            shutil.copy2(TOOLS / 'p1' / name, stage / 'service' / name)
         for name in ('fabric_service.py', 'fabric.py'):
-            copies['fabric/' + name] = SIM / 'tools/p5' / name
-        copies['fabric/gen4-eight.json'] = SIM / 'tools/p5/profiles/gen4-eight.json'
-        for name, source in copies.items():
-            target = stage / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
-        # Keep the distributed simulator reasonably sized; the original remains intact.
-        subprocess.run(['strip', '--strip-debug', str(stage / 'bin/spike')], check=True)
-        module = HERE.parent / 'p1/evidence/host-module'
+            shutil.copy2(TOOLS / 'p5' / name, stage / 'fabric' / name)
+        shutil.copy2(TOOLS / 'p5/profiles/gen4-eight.json', stage / 'fabric/gen4-eight.json')
         for cards in (2, 8):
-            guest_image(stage, cards, module, work)
+            guest_image(stage, cards, work)
+        (stage / 'manifest.json').unlink(missing_ok=True)
+        (stage / 'host-dependencies.txt').unlink(missing_ok=True)
         manifest = dict(schema=1, scope='P5-Linux-2-and-8-card-runtime',
                         created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                         files={str(p.relative_to(stage)): digest(p)
@@ -140,11 +132,9 @@ def build_bundle(work):
 
 
 def select_bundle(work, mode='auto'):
-    source = mode == 'source' or (mode == 'auto' and has_sources())
+    source = mode == 'source'
     if source:
-        if not has_sources():
-            raise RuntimeError('Simulator source tree is missing')
-        print('P5 runtime: source build and publish', flush=True)
+        print('P5 runtime: local runtime/guest rebuild and publish', flush=True)
         path = build_bundle(work)
     else:
         print('P5 runtime: prebuilt bundle', flush=True)
@@ -181,6 +171,9 @@ class BundlePlatform(Platform):
         for i in range(self.count):
             self.sockets.append(Path(f'/tmp/zc-p4-{os.getpid()}-{i}.sock'))
             self.start_service(i)
+        self.start_fabric()
+
+    def start_fabric(self):
         config = json.loads((self.bundle / 'fabric/gen4-eight.json').read_text())
         config['cards'] = self.count
         (self.work / 'fabric-config.json').write_text(json.dumps(config, indent=2))

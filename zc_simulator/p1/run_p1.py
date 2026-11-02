@@ -21,7 +21,7 @@ ISA = 'rv64imafdcv_zvl512b_zve32d_zfh_zvfh_zfbfmin_zvfbfmin_zba_zbb_zbs_zicond'
 CONTROL = 0x100100000
 FIRMWARE = ROOT / 'simulator/riscv-tests/firmware.riscv'
 SPIKE = SIM / 'build/spike'
-QEMU = ROOT / 'qemu/build/qemu-system-x86_64'
+QEMU = HERE.parents[1] / 'build/qemu-system-x86_64'
 
 
 def digest(p):

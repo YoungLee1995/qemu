@@ -1,3 +1,5 @@
+> 历史记录：文中的原开发机路径不作为当前操作入口。现行启动、构建和源码位置以 [README.md](README.md)、[操作教程.md](操作教程.md) 为准；当前使用不需要同级 simulator 仓库。
+
 # 原版 host-demo / pcie-demo 接入实测
 
 2026-11-02，本地实验，未提交。测试对象是同级 `simulator/host-demo` 和 `simulator/pcie-demo`，以及正在运行的八卡 Ubuntu 桌面。没有把原 P5 验收结果当成本次原版 demo 的验收结果。

@@ -14,7 +14,7 @@ def main():
     import argparse
     ap=argparse.ArgumentParser();ap.add_argument('--cards',type=int,choices=(2,8),default=8)
     ap.add_argument('--runtime',choices=('auto','source','prebuilt'),default='auto',
-                    help='auto: build when simulator sources exist, otherwise use simu/current')
+                    help='auto/prebuilt: use simu/current; source: rebuild in-repo runtime and guest')
     ap.add_argument('--prepare-only',action='store_true',help='Build/validate the runtime bundle and exit')
     options=ap.parse_args()
     work=HERE/'evidence'/f'linux-{options.cards}-{time.time_ns()}';work.mkdir(parents=True)
@@ -33,14 +33,18 @@ def main():
         initrd=bundle/f'guest/initramfs-{options.cards}.cpio.gz'
         kernel=bundle/'guest/vmlinuz-lts'
         check('pinned_kernel',digest(kernel)=='9d6eff6e7bcd5f5fba623f7a44c565ca6914da2b91110a8dc72a3a63cb088693')
-        args=[str(QEMU),'-machine','q35','-accel','tcg','-m','512M','-smp','4,sockets=1,cores=4,threads=1','-nodefaults','-display','none',
+        args=[str(QEMU),'-L',str(HERE.parents[1]/'pc-bios'),'-machine','q35','-accel','tcg','-m','512M','-smp','4,sockets=1,cores=4,threads=1','-nodefaults','-display','none',
               '-serial','stdio','-monitor','none','-no-reboot','-icount','shift=3,align=off,sleep=off',
               '-kernel',str(kernel),'-initrd',str(initrd),'-append','console=ttyS0 rdinit=/init intel_iommu=on iommu.strict=1 pci=realloc=on panic=-1',
               '-global','q35-pcihost.pci-hole64-size=512G','-device','intel-iommu,intremap=on,caching-mode=on']+p.device_args()
         (work/'qemu-command.json').write_text(json.dumps(args,indent=2))
         with (work/'linux.log').open('w') as log:
             p.qemu=subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT)
-            check('linux_exit',p.qemu.wait(timeout=900)==0)
+            code=p.qemu.wait(timeout=900)
+            if code:
+                print(f'QEMU exit code: {code}; log: {work / "linux.log"}', flush=True)
+                print((work/'linux.log').read_text(errors='replace')[-8000:], flush=True)
+            check('linux_exit',code==0)
         text=(work/'linux.log').read_text(errors='replace')
         check('no_kernel_panic','Kernel panic' not in text)
         check('guest_all_tasks',f'P5_BASE_PASS cards={options.cards} ' in text and 'P5_C_LIBRARY_PASS' in text and 'P4_GUEST_EXIT=0' in text and text.count('P5_ASYNC_ROUND')==3)

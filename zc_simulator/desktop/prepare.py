@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare only local desktop experiment artifacts, never the published bundle."""
-import crypt
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -16,10 +16,15 @@ HERE = STATE
 
 def main():
     HERE.mkdir(parents=True, exist_ok=True)
+    lock = (HERE / 'desktop.lock').open('a')
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     tools = HERE / 'tools/root/usr/bin'
     qemu_img = shutil.which('qemu-img') or str(tools / 'qemu-img')
     genisoimage = shutil.which('genisoimage') or str(tools / 'genisoimage')
-    env = dict(os.environ, LD_LIBRARY_PATH=str(HERE / 'tools/root/usr/lib/x86_64-linux-gnu'))
+    env = dict(os.environ)
+    local_lib = HERE / 'tools/root/usr/lib/x86_64-linux-gnu'
+    if local_lib.is_dir():
+        env['LD_LIBRARY_PATH'] = str(local_lib) + ':' + env.get('LD_LIBRARY_PATH', '')
     base = HERE / 'ubuntu-24.04-base.qcow2'
     partial = base.with_suffix('.qcow2.part')
     expected = next(line.split()[0] for line in (HERE / 'SHA256SUMS').read_text().splitlines()
@@ -50,17 +55,12 @@ def main():
             json.dump(dict(user='t100', password=password), f, indent=2)
     share = HERE / 'share'
     (share / 'driver').mkdir(parents=True, exist_ok=True)
-    source = SOURCE / 'share/driver/ssv_test_driver.c'
-    driver = share / 'driver/ssv_test_driver.c'
-    if driver.resolve() != source.resolve():
-        shutil.copy2(source, driver)
-    for name in ('my-task.c', 'desktop-info.sh', 'CUSTOM_TASK.md'):
+    for name in ('driver/ssv_test_driver.c', 'driver/Makefile',
+                 'my-task.c', 'desktop-info.sh', 'CUSTOM_TASK.md'):
         target = share / name
-        if not target.is_symlink():
-            shutil.copy2(SOURCE / 'share' / name, target)
-    makefile = share / 'driver/Makefile'
-    if makefile.resolve() != (SOURCE / 'share/driver/Makefile').resolve():
-        shutil.copy2(SOURCE / 'share/driver/Makefile', makefile)
+        if target.is_symlink():
+            target.unlink()
+        shutil.copy2(SOURCE / 'share' / name, target)
     shutil.copy2(REPO / 'zc_simulator/p4/guest-cluster.c', share / 'guest-cluster.c')
     setup = '''#!/bin/bash
 set -euo pipefail
@@ -113,7 +113,8 @@ echo "T100_DESKTOP_READY $(date -Is)"
         'ssh_pwauth': False,
         'users': [{'name': 't100', 'shell': '/bin/bash', 'groups': ['sudo'],
                    'sudo': ['ALL=(ALL) NOPASSWD:ALL'], 'lock_passwd': False,
-                   'passwd': crypt.crypt(password, crypt.mksalt(crypt.METHOD_SHA512)),
+                   'passwd': subprocess.check_output(['openssl', 'passwd', '-6', '-stdin'],
+                                                     input=password + '\n', text=True).strip(),
                    'ssh_authorized_keys': [key.with_suffix('.pub').read_text().strip()]}],
         'write_files': [
             {'path': '/usr/local/sbin/t100-desktop-setup', 'permissions': '0755', 'content': setup},

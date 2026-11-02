@@ -79,7 +79,7 @@ def main():
     module=HERE/'evidence/host-module'
     module.mkdir(exist_ok=True)
     for name in ('ssv_test_driver.c','ssv_test_app.c'):
-        shutil.copy2(ROOT/'simulator/host-demo'/name,module/name)
+        shutil.copy2(HERE.parent/'host-demo'/name,module/name)
     subprocess.run(['patch','-p1','-i',str(HERE/'host-demo.patch')],cwd=module,check=True)
     (module/'Makefile').write_text('obj-m += ssv_test_driver.o\n')
     subprocess.run(['gcc','-O2','-I'+str(h/'scripts/include'),'-o',str(h/'scripts/basic/fixdep'),str(h/'scripts/basic/fixdep.c')],check=True)
@@ -102,7 +102,7 @@ os.execvp('gcc',['gcc']+args)
     (module/'manifest.json').write_text(json.dumps({
         'kernel_version':KVER,'mode':'internal GCC11 debug module; plugins/auto-var-init omitted',
         'packages':{name:{'url':BASE+name,'sha256':sha(p)} for name,p in packages.items()},
-        'inputs':{str(p):sha(p) for p in [HERE/'host-demo.patch',ROOT/'simulator/host-demo/ssv_test_driver.c',ROOT/'simulator/host-demo/ssv_test_app.c']},
+        'inputs':{str(p):sha(p) for p in [HERE/'host-demo.patch',HERE.parent/'host-demo/ssv_test_driver.c',HERE.parent/'host-demo/ssv_test_app.c']},
         'outputs':{str(p):sha(p) for p in [module/'ssv_test_driver.ko',module/'ssv_test_app']}},indent=2))
     print(module,flush=True)
 

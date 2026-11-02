@@ -68,7 +68,7 @@ python3 zc_simulator/desktop/control.py ssh \
 先准备与入口地址匹配、能够独立运行的裸二进制：
 
 ```sh
-cd /workspace/GIT/pcie_qemu/qemu
+# 在实际克隆的 QEMU 仓库根目录执行
 export CORE_WORK="$PWD/zc_simulator/desktop/state/core-dev"
 mkdir -p "$CORE_WORK"
 # 将工具链生成的文件复制为：
@@ -156,11 +156,11 @@ l1buf_output_num:1
 
 这是格式示例，需替换原配置中的对应计数和条目，地址/长度必须与自己的程序一致，不能覆盖代码、栈或其他输入。输出行顺序是 **地址、文件路径、字节数**。
 
-独立 runtime 程序正常结束时需向 dispatcher 写退出码。例如 MCU0 写 `0x7c000010`，NPU0 写 `0x7c000018`；写 0 后保持自旋，待所有配置业务 hart 完成，由 firmware 导出输出并结束模拟器。只从 `main` 返回通常会回到启动代码的自旋，不能作为任务完成条件。有关中断、mailbox 和退出槽位，见 [runtime 用例说明](../../../simulator/riscv-tests/runtime_test/README.md)。
+独立 runtime 程序正常结束时需向 dispatcher 写退出码。例如 MCU0 写 `0x7c000010`，NPU0 写 `0x7c000018`；写 0 后保持自旋，待所有配置业务 hart 完成，由 firmware 导出输出并结束模拟器。只从 `main` 返回通常会回到启动代码的自旋，不能作为任务完成条件。有关中断、mailbox 和退出槽位，见 本仓库 [MCU 编译教程](MCU编译教程.md)。
 
 现有 P5 的 `mcu.bin`/`npu.bin` 需要共享状态、访问代理及 Host 会话，不能保证抽出任一镜像单独执行就能完成。NPU-only 程序也不能等待一个根本没有启动的 MCU；MCU-only 程序不能无限等待 NPU 回包。
 
-现有 `zc_simulator/p5/run_tasks.py` 可运行固定 Tensor 测试，但脚本内部固定八卡和测试程序，没有 `--card`、`--script` 或任意 NPU 程序路径选项。它也不是当前桌面已安装的通用 NPU 指令执行器。
+现有 `zc_simulator/p5/run_tasks.py` 使用仓库内 `p5/fixtures/tensor/` 和发布包运行固定 Tensor 测试，但脚本内部固定八卡和测试程序，没有 `--card`、`--script` 或任意 NPU 程序路径选项。它也不是当前桌面已安装的通用 NPU 指令执行器。
 
 ## 5. 本次验证与桌面端尚需补齐的部分
 

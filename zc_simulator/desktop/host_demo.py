@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the sibling simulator host demo inside the running desktop VM."""
+"""Build the repository host demo inside the running desktop VM."""
 import argparse
 import shutil
 import subprocess
@@ -12,7 +12,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--interactive', action='store_true', help='Open the host demo command prompt')
     args = ap.parse_args()
-    source = REPO.parent / 'simulator/host-demo/ssv_test_app.c'
+    source = REPO / 'zc_simulator/host-demo/ssv_test_app.c'
     if not source.is_file():
         ap.error(f'missing host demo source: {source}')
     share = STATE / 'share/pcie-demo-check'

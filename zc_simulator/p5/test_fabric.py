@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'simulator/tools/p5'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools/p5'))
 from fabric import Fabric, LinkConfig
 from communication import Communication
 
