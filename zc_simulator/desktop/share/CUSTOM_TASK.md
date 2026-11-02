@@ -22,7 +22,7 @@ my-task.c 的输入循环和校验循环可改为自己的数据生成和结果�
 - driver/ssv_test_driver.c：当前 Ubuntu demo 驱动源码，驱动负责 PCIe 绑定、DMA buffer 和 mmap 等。
 - guest-communication.c：P5 异步通信测试源码副本。它依赖构建时生成的 p4-base.c，以及外部 simulator/tools/p5/zc_comm.h。当前发布工作区缺少这个外部头文件，不能仅凭该 .c 独立重建 p5-guest-test-8；已发布的静态程序可直接运行。
 - 容器中 QEMU 仓库 zc_simulator/p2/runtime/runtime.c：早期 MCU/NPU 参考实现，可以阅读任务轮询、DMA、完成状态和 XOR 运算。不是当前发布 P5 固件的完整对应源码。
-- 当前 P5 Device runtime 的构建源路径由启动脚本指向 /data/simulator/simulator/tools/p5/runtime/，当前工作区没有这个目录；发布包里有 mcu.bin/npu.bin。要修改当前 P5 Device 行为，需要恢复匹配版本的源码。
+- 当前工作区已提供同级 `simulator/tools/p5/runtime/runtime.c` 和 Makefile，可构建 P5 MCU/NPU 参考镜像；desktop 启动时仍从 `simu/current` 发布包取镜像，构建源码不会自动切换固件。修改 Device 行为需核对发布包与源码版本，并接入实验加载流程。外层 QEMU 仓库的 `zc_simulator/desktop/MCU编译教程.md` 提供编译命令和独立裸机工程示例。
 
 ## 本次验证
 

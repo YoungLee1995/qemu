@@ -36,6 +36,10 @@ sudo /opt/t100/guest-cluster
 
 输入 `exit` 只断开命令行，不会关闭虚拟机。
 
+进入 `t100@t100-eight-card:~$` 后，按 [登录 Ubuntu 后的逐步操作](操作教程.md) 完成设备检查、八卡测试、自定义 Host 任务及原版 Host demo 交互。设备侧开发同事另见 [MCU mcu.bin 编译教程](MCU编译教程.md)，其中包含可直接构建的最小裸机工程。
+
+选卡、指定 Host 脚本及独立 simulator 的 MCU-only/NPU-only/两者启动方式见 [指定设备与 MCU/NPU 运行说明](指定设备与MCU-NPU运行说明.md)。desktop 当前尚无按卡热加载任意 MCU/NPU 程序的统一命令。
+
 ## 浏览器终端
 
 ```sh
@@ -128,6 +132,10 @@ ttyd 项目与构建说明：<https://github.com/tsl0922/ttyd>。浏览器终端
 修改 `share/my-task.c` 等自定义任务源码后，可重新执行 `prepare.py` 同步共享文件；不要在 VM 运行期间重建它正在使用的 seed 和镜像，请先正常关闭。
 
 ## 验证与开发
+
+原版 `simulator/host-demo` 可通过 `python3 zc_simulator/desktop/host_demo.py` 在运行中的 VM 内编译并检查八卡，追加 `--interactive` 进入命令行。原版 `pcie-demo` 目前缺少 SDK 与构建文件，未生成替代 MCU；本次文件往返测试超时。具体证据、产物位置和运行方法见 [原版 demo 接入实测](DEMO_VALIDATION.md)。
+
+登录 Ubuntu 后的逐步操作见 [操作教程](操作教程.md)；工具链同事编译 RISC-V 裸机 `mcu.bin` 的目录结构、Makefile、地址约定和加载验证见 [MCU 编译教程](MCU编译教程.md)。
 
 2026-11-02 已完成实际 RDP 登录，看到 XFCE 桌面；8 个 PCIe 设备和驱动节点正常，xrdp active。完整 P5 测试通过 32 Host DMA、224 peer、8 file IPC，以及连续 3 轮各 56 对异步通信。桌面基础测试也通过。
 
