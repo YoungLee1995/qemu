@@ -179,7 +179,10 @@ class Session:
         if self.state == 'STARTING':
             if self.proc.poll() is not None:
                 raise ProtocolError('backend exited before software ready')
-            if struct.unpack_from('<II', self.maps[1], CONTROL+16) == (1, 1):
+            ready = struct.unpack_from('<II', self.maps[1], CONTROL+16)
+            required = (ready[0] == 1 if self.config.get('ready_cores') == 'mcu'
+                        else ready == (1, 1))
+            if required:
                 struct.pack_into('<II', self.maps[2], 0x404, self.epoch, 1)
                 self.state = 'READY'
                 self.reply(SOFTWARE_READY, self.pending)
@@ -221,6 +224,8 @@ def main():
     config = json.loads(args.config.read_text())
     if 'p2' in config and not isinstance(config['p2'], bool):
         raise ValueError('p2 must be a JSON boolean')
+    if config.get('ready_cores', 'both') not in ('both', 'mcu'):
+        raise ValueError('ready_cores must be both or mcu')
     config['digest'] = sha(args.config)
     args.work.mkdir(parents=True, exist_ok=True)
     # Do not replace an existing listening service or unlink another socket.

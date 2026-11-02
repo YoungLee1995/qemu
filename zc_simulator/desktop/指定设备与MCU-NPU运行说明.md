@@ -2,16 +2,9 @@
 
 ## 当前支持到哪一层
 
-| 需求 | 当前能力 | 命令执行位置 |
-| --- | --- | --- |
-| 指定 PCIe 卡执行现有任务 | 支持，`my-task` 的第一个参数为卡号 | Ubuntu 来宾 |
-| 指定 Host 脚本，脚本向指定卡提交任务 | 支持，脚本调用现有 Host 工具即可 | Ubuntu 来宾，或从外层经 SSH 调用 |
-| 每张桌面卡同时启动 MCU+NPU | 支持；固定使用发布包镜像，MCU hart 1、NPU hart 16 | desktop 启动流程 |
-| 只启动 MCU、只启动 NPU、同时启动两者 | 底层 simulator 支持用 `firmware.cfg` 选择，三种最小程序已实际验证 | 外层容器的独立 simulator 进程 |
-| 在运行中的八卡桌面选择卡 N、热加载任意 `mcu.bin` / NPU 程序 | 尚无通用入口 | 需要补设备端装载、调度和 Host 命令 |
-| `desktop.py --card N --mcu-bin ... --npu-bin ...` | 当前没有这些参数；`--cards` 仅控制卡数量 | 不可按此假设调用 |
+新增的两终端分离启动方式见 [克隆指南第 8 节](../克隆后构建与运行简易指南.md#8-在两个终端分别启动-spike-后端与-qemu)：`cli/spike.py` 用参数选择卡数、MCU/NPU 镜像和核心组合，`cli/qemu.py` 连接生成的后端清单。支持 backend 模式的 MCU+NPU、MCU-only；standalone 模式还支持 NPU-only。自定义程序须实现对应 ABI。
 
-因此，同事要求的“命令 + 卡号 + 任意 MCU/NPU 程序路径 + 执行模式”**尚未作为桌面端完整功能交付**。下面分别给出现有功能的操作方法。
+`desktop.py` 仍使用默认发布包，不增加镜像热加载参数。现有新入口是开机前选择镜像，不是在运行中的某张卡热加载任意程序。当前模型一卡一个实例，多卡不等于一卡多 die。
 
 ## 1. 在 Ubuntu 中指定一张卡执行现有任务
 
@@ -162,10 +155,12 @@ l1buf_output_num:1
 
 现有 `zc_simulator/p5/run_tasks.py` 使用仓库内 `p5/fixtures/tensor/` 和发布包运行固定 Tensor 测试，但脚本内部固定八卡和测试程序，没有 `--card`、`--script` 或任意 NPU 程序路径选项。它也不是当前桌面已安装的通用 NPU 指令执行器。
 
-## 5. 本次验证与桌面端尚需补齐的部分
+## 5. 本次验证与适用边界
 
 2026-11-02 已使用当前发布包的 Spike 和 firmware，在隔离目录构建并运行三组最小程序：MCU-only、NPU-only、MCU+NPU。各组均通过 dispatcher 正常结束，退出码为 0，并导出 DDR 中对应的 MCU/NPU 标记校验通过。该验证覆盖启动选择、指令执行、完成和输出，不覆盖任意 Tensor 指令包或桌面 PCIe 卡的动态装载。
 
 证据在 `desktop/state/core-selection-validation/`：`main.c`、`start.S`、`link.ld`、三份 cfg、各自的日志/输出及 `results.json`。初次输出配置字段顺序错误的日志以 `*-initial-wrong-output-config.log` 保留；修正后重新执行并核对实际输出，没有仅凭进程退出码判定成功。
 
-若要满足同事完整需求，仍需增加桌面端的按卡镜像/任务配置入口，处理每卡输入目录与摘要、MCU/NPU 独立启动的 ready/完成约定，以及自定义 NPU 程序的装载和调用 ABI。现有 `--cards`、`set-device`、DMA `mode` 参数都不能替代这些功能。
+新增 `cli/spike.py` 和 `cli/qemu.py` 已提供开机前的 MCU/NPU 镜像选择、每卡独立目录/摘要、MCU-only ready 判断，以及独立启动 Spike 或连接 QEMU 的入口。分离启动的双卡和八卡完整 Linux 测试通过，单卡 MCU-only 已验证设备就绪和交互 shell，具体命令见克隆指南第 8 节。
+
+当前所有卡使用同一组指定镜像；仍不支持每卡不同 BIN、一卡多 die 或运行中的镜像热加载。自定义程序须实现对应的 ready/会话/任务 ABI；`set-device`、DMA `mode` 不能替代镜像装载协议。
