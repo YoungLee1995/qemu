@@ -17,7 +17,16 @@ HERE = STATE
 def main():
     HERE.mkdir(parents=True, exist_ok=True)
     lock = (HERE / 'desktop.lock').open('a')
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit(
+            f'桌面数据目录正在使用：{HERE}\n'
+            '已有桌面或初始化进程持有锁，不能在运行期间重建系统盘/seed。\n'
+            '查看已有桌面：python3 zc_simulator/desktop/control.py status\n'
+            '直接连接：python3 zc_simulator/desktop/terminal.py\n'
+            '确需重新初始化时，先运行 python3 zc_simulator/desktop/control.py stop，\n'
+            '等待原 desktop.py 进程退出，再执行 prepare.py。不要删除 desktop.lock。')
     tools = HERE / 'tools/root/usr/bin'
     qemu_img = shutil.which('qemu-img') or str(tools / 'qemu-img')
     genisoimage = shutil.which('genisoimage') or str(tools / 'genisoimage')

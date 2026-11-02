@@ -12,10 +12,29 @@ import tempfile
 import time
 
 from paths import REPO, SOURCE, STATE
+from control import powerdown
 
 HERE = STATE
 sys.path.insert(0, str(REPO / 'zc_simulator/p5'))
 from linux_bundle import BundlePlatform, validate_bundle
+
+
+def readiness_command(state):
+    """Check live guest services, rather than just the forwarded TCP port."""
+    host = state['bind']
+    if host == '0.0.0.0':
+        host = '127.0.0.1'
+    check = ('test -e /var/lib/t100-desktop-ready && '
+             'systemctl is-active --quiet xrdp && '
+             f'test "$(find /dev -maxdepth 1 -type c -name \'test_dma_*\' | wc -l)" -eq {state["cards"]}')
+    for card in range(state['cards']):
+        check += f' && test -c /dev/test_dma_{card}'
+    return ['ssh', '-i', str(HERE / 'ssh_key'), '-p', str(state['ssh_port']),
+            '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes',
+            '-o', 'StrictHostKeyChecking=accept-new',
+            '-o', 'UserKnownHostsFile=' + str(HERE / 'known_hosts'),
+            '-o', 'ConnectTimeout=5', '-o', 'ConnectionAttempts=1',
+            't100@' + host, check]
 
 
 def main():
@@ -29,8 +48,16 @@ def main():
     args = ap.parse_args()
     HERE.mkdir(parents=True, exist_ok=True)
     # Avoid two VMs opening the same persistent disk or forwarding ports.
-    with (HERE / 'desktop.lock').open('w') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    with (HERE / 'desktop.lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            ap.exit(1, f'桌面数据目录正在使用：{HERE}\n'
+                    '已有桌面或初始化进程持有锁，不要重复启动。\n'
+                    '检查：python3 zc_simulator/desktop/control.py status\n'
+                    '连接：python3 zc_simulator/desktop/terminal.py\n'
+                    '如需重启，先用 control.py stop 正常关机，等待原启动进程退出。\n'
+                    '若正在运行 prepare.py，请等待初始化完成。不要删除 desktop.lock。\n')
         disk = HERE / 'ubuntu-24.04-desktop.qcow2'
         seed = HERE / 'seed.iso'
         for path in (disk, seed):
@@ -46,6 +73,12 @@ def main():
         (work / 'platform.json').write_text(json.dumps(p.spec, indent=2))
         (work / 'bundle.json').write_text(json.dumps(dict(path=str(bundle), manifest=manifest), indent=2))
         stopping = False
+        powerdown_requested = False
+
+        def request_powerdown(signum, frame):
+            nonlocal powerdown_requested
+            powerdown_requested = True
+            os.write(2, '\n收到 Ctrl+Z，正在请求 Ubuntu 正常关机，请等待启动器退出。\n'.encode())
 
         def stop(signum, frame):
             nonlocal stopping
@@ -55,7 +88,12 @@ def main():
 
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
+        # Ignored dispositions survive exec: every backend (including its later
+        # Spike children) and QEMU must ignore terminal-generated SIGTSTP too.
+        # Install the supervisor's explanatory handler only after those forks.
+        signal.signal(signal.SIGTSTP, signal.SIG_IGN)
         sockets = tempfile.TemporaryDirectory(prefix="zc-desktop-")
+        probe = None
         try:
             p.prepare()
             qmp = Path(sockets.name) / 'qmp.sock'
@@ -83,20 +121,72 @@ def main():
             (work / 'qemu-command.json').write_text(json.dumps(command, indent=2))
             with (work / 'qemu.log').open('w') as log:
                 p.qemu = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
+            signal.signal(signal.SIGTSTP, request_powerdown)
             state = dict(supervisor_pid=os.getpid(), qemu_pid=p.qemu.pid,
                          work=str(work), ssh_port=args.ssh_port, rdp_port=args.rdp_port,
-                         cards=args.cards, disk=str(disk), bind=args.bind)
+                         cards=args.cards, disk=str(disk), bind=args.bind, qmp=str(qmp))
             (HERE / 'active.json').write_text(json.dumps(state, indent=2))
             print(json.dumps(state, indent=2), flush=True)
+            print('当前终端保持运行；按 Ctrl+Z 将请求正常关机，不会挂起虚拟机。', flush=True)
+            print('正在等待 Ubuntu SSH、设备驱动和 xrdp 就绪；首次启动需要联网安装软件。', flush=True)
+            print(f'启动日志：{work / "serial.log"}', flush=True)
+            ready = False
+            next_probe = 0
+            next_notice = time.monotonic() + 30
+            probe_started = 0
+            powerdown_sent = False
+            next_powerdown = 0
             while p.qemu.poll() is None:
                 if any(proc.poll() is not None for proc in p.services.values()):
                     raise RuntimeError('a backend service exited; see run logs')
                 if p.fabric_process.poll() is not None:
                     raise RuntimeError('fabric service exited; see run logs')
+                now = time.monotonic()
+                if powerdown_requested or (powerdown_sent and now >= next_powerdown):
+                    powerdown_requested = False
+                    try:
+                        powerdown(state)
+                        powerdown_sent = True
+                        # Early boot may not yet handle the ACPI button. Keep
+                        # requesting graceful shutdown; never freeze/kill it.
+                        next_powerdown = time.monotonic() + 15
+                    except (OSError, ValueError, KeyError, RuntimeError) as exc:
+                        next_powerdown = time.monotonic() + 15
+                        print(f'正常关机请求失败：{exc}；VM 继续运行，可重按 Ctrl+Z 或用 control.py stop 重试。',
+                              flush=True)
+                if not ready and not powerdown_sent:
+                    if probe is not None:
+                        result = probe.poll()
+                        if result is None and now - probe_started > 15:
+                            probe.kill()
+                            probe.wait()
+                            result = probe.returncode
+                        if result is not None:
+                            probe = None
+                            next_probe = now + 5
+                            if result == 0:
+                                ready = True
+                                state['ready'] = True
+                                (HERE / 'active.json').write_text(json.dumps(state, indent=2))
+                                print(f'\nDESKTOP_READY：Ubuntu 已就绪（SSH、{args.cards} 个设备节点、xrdp）。\n'
+                                      '请在另一个宿主终端执行：\n'
+                                      '  python3 zc_simulator/desktop/terminal.py\n'
+                                      '当前终端请保持运行。', flush=True)
+                    if not ready and probe is None and now >= next_probe:
+                        with (work / 'readiness.log').open('a') as log:
+                            probe = subprocess.Popen(readiness_command(state), stdout=log, stderr=log,
+                                                     start_new_session=True)
+                        probe_started = now
+                    if not ready and now >= next_notice:
+                        print('仍在等待 Ubuntu 就绪；可查看 serial.log 和 readiness.log。', flush=True)
+                        next_notice = now + 30
                 time.sleep(1)
             if p.qemu.returncode and not stopping:
                 raise RuntimeError(f'QEMU exited {p.qemu.returncode}; see {work / "qemu.log"}')
         finally:
+            if probe is not None and probe.poll() is None:
+                probe.kill()
+                probe.wait()
             p.close()
             sockets.cleanup()
             # active.json is useful for postmortem; mark processes as stopped.
@@ -104,6 +194,7 @@ def main():
             if state_path.exists():
                 state = json.loads(state_path.read_text())
                 state['stopped'] = True
+                state['ready'] = False
                 state_path.write_text(json.dumps(state, indent=2))
 
 
