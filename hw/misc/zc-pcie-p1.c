@@ -111,11 +111,9 @@ static uint32_t *control(ZCP1State *s)
 
 static bool p1_ready(ZCP1State *s)
 {
-    uint32_t *c = control(s);
     return s->active && (!s->backend_socket || s->session_ready) &&
            p1_load(s->mailbox + 0x404 / 4) == s->epoch &&
-           p1_load(s->mailbox + 0x408 / 4) == 1 &&
-           p1_load(c + 4) == 1 && p1_load(c + 5) == 1;
+           p1_load(s->mailbox + 0x408 / 4) == 1;
 }
 
 

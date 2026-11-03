@@ -73,6 +73,7 @@ def main():
     shutil.copy2(REPO / 'zc_simulator/p4/guest-cluster.c', share / 'guest-cluster.c')
     for name in ('zc_host.h', 'zc_comm.h'):
         shutil.copy2(REPO / 'zc_simulator/tools/p5' / name, share / name)
+    shutil.copy2(SOURCE / 'device_reload.py', share / 'device_reload.py')
     setup = '''#!/bin/bash
 set -euo pipefail
 exec > >(tee -a /var/log/t100-desktop-setup.log) 2>&1

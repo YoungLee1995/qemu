@@ -198,7 +198,7 @@ class BundlePlatform(Platform):
     def start_service(self, i):
         with (self.work / f'service{i}.log').open('a') as log:
             self.services[i] = subprocess.Popen([sys.executable,
-                str(self.bundle / 'service/service.py'), '--socket', str(self.sockets[i]),
+                str(TOOLS / 'p1/service.py'), '--socket', str(self.sockets[i]),
                 '--config', str(self.cfg), '--work', str(self.work / f'service{i}'),
                 '--card', str(i)], stdout=log, stderr=subprocess.STDOUT,
                 env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'))

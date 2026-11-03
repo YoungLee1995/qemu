@@ -165,6 +165,22 @@ class Session:
         elif kind == RESET and not payload:
             self.reap()
             self.epoch = epoch
+            replacement = self.work / 'reload-config.json'
+            if replacement.exists():
+                updated = json.loads(replacement.read_text())
+                for name, expected in updated['sha256'].items():
+                    if sha(name) != expected:
+                        raise ProtocolError('replacement image changed: ' + name)
+                # QEMU pins the service identity. New payload pins are recorded
+                # separately and applied only after QUIESCE reaped old Spike.
+                updated['digest'] = self.config['digest']
+                self.config = updated
+                applied = self.work / 'applied-config.json'
+                staged = self.work / 'applied-config.tmp'
+                staged.write_text(json.dumps(updated, indent=2))
+                staged.replace(applied)
+                replacement.unlink()
+                self.record('images_replaced', sha256=updated['sha256'])
             self.clear()
             self.state = 'MEMORY_READY'
             self.reply(RESET_ACK, request)

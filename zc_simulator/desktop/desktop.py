@@ -12,6 +12,7 @@ import tempfile
 import time
 
 from paths import REPO, SOURCE, STATE
+from reload_controller import ReloadController
 
 HERE = STATE
 sys.path.insert(0, str(REPO / 'zc_simulator/p5'))
@@ -108,6 +109,7 @@ def main():
         signal.signal(signal.SIGHUP, signal.SIG_IGN)
         sockets = tempfile.TemporaryDirectory(prefix="zc-desktop-")
         probe = None
+        reload_controller = None
         try:
             p.prepare()
             qmp = Path(sockets.name) / 'qmp.sock'
@@ -141,10 +143,12 @@ def main():
                          work=str(work), ssh_port=args.ssh_port, rdp_port=args.rdp_port,
                          cards=args.cards, disk=str(disk), bind=args.bind, qmp=str(qmp))
             (HERE / 'active.json').write_text(json.dumps(state, indent=2))
+            reload_controller = ReloadController(p, state)
             announce(json.dumps(state, indent=2), flush=True)
             announce('Ctrl+Z 已忽略；关闭终端后虚拟机继续运行。正常关机请执行 control.py stop。', flush=True)
             announce('正在等待 Ubuntu SSH、设备驱动和 xrdp 就绪；首次启动需要联网安装软件。', flush=True)
             announce(f'启动日志：{work / "serial.log"}', flush=True)
+            reload_warning = False
             ready = False
             next_probe = 0
             next_notice = time.monotonic() + 30
@@ -152,6 +156,9 @@ def main():
             while p.qemu.poll() is None:
                 if any(proc.poll() is not None for proc in p.services.values()):
                     raise RuntimeError('a backend service exited; see run logs')
+                if not reload_warning and not reload_controller.worker.is_alive():
+                    reload_warning = True
+                    announce('换镜像控制器已退出，请检查 supervisor.log；当前 VM 继续运行。', flush=True)
                 if p.fabric_process.poll() is not None:
                     raise RuntimeError('fabric service exited; see run logs')
                 now = time.monotonic()
@@ -185,6 +192,8 @@ def main():
             if p.qemu.returncode and not stopping:
                 raise RuntimeError(f'QEMU exited {p.qemu.returncode}; see {work / "qemu.log"}')
         finally:
+            if reload_controller is not None:
+                reload_controller.close()
             if probe is not None and probe.poll() is None:
                 probe.kill()
                 probe.wait()
