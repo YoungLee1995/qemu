@@ -137,7 +137,10 @@ static void p1_session_connect(ZCP1State *s)
     }
     s->session_fd = fd;
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        p1_session_fail(s, "connect");
+        g_autofree char *reason = g_strdup_printf("connect %s: %s",
+                                                 s->backend_socket,
+                                                 strerror(errno));
+        p1_session_fail(s, reason);
         return;
     }
     /* Session never repeats across reconnects or QEMU starts. */
