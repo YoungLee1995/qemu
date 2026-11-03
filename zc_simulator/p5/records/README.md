@@ -10,4 +10,5 @@
 - [P0-P5历史工作区开发入口](P0-P5历史工作区开发入口.md)
 - [工具链组需求清单pci-switch-8card-simulator-requirements](工具链组需求清单pci-switch-8card-simulator-requirements.md)
 - [独立QEMU交付验证记录](独立QEMU交付验证记录.md)
+- [全新桌面逐步验证记录（2026-11-03）](全新桌面逐步验证记录-2026-11-03.md)
 - [群内对话技术总结](群内对话技术总结.md)

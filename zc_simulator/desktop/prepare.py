@@ -114,6 +114,9 @@ EOF
 chmod +x /home/t100/Desktop/*.desktop
 chown -R t100:t100 /home/t100/Desktop
 systemctl enable --now xrdp
+# apt may have started xrdp before usermod added its certificate group.
+# Restart so the running daemon inherits ssl-cert and can accept TLS.
+systemctl restart xrdp
 touch /var/lib/t100-desktop-ready
 echo "T100_DESKTOP_READY $(date -Is)"
 '''

@@ -25,6 +25,7 @@ def readiness_command(state):
     if host == '0.0.0.0':
         host = '127.0.0.1'
     check = ('test -e /var/lib/t100-desktop-ready && '
+             'test -x /opt/t100/guest-cluster && '
              'systemctl is-active --quiet xrdp && '
              f'test "$(find /dev -maxdepth 1 -type c -name \'test_dma_*\' | wc -l)" -eq {state["cards"]}')
     for card in range(state['cards']):

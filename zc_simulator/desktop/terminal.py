@@ -9,7 +9,7 @@ if not (h / 'active.json').is_file():
     raise SystemExit(
         f'尚无 Ubuntu 桌面启动记录：{h / "active.json"}\n'
         'run_linux.py 是运行后自动关机的测试，不会启动常驻 Ubuntu。\n'
-        '首次使用请按 zc_simulator/克隆后构建与运行简易指南.md 的桌面准备流程下载镜像并运行 prepare.py。\n'
+        '首次使用请按 zc_simulator/完整构建与运行指南.md 的桌面准备流程下载镜像并运行 prepare.py。\n'
         '然后在终端 A 运行 python3 zc_simulator/desktop/desktop.py --cards 8，\n'
         '保持运行，再在终端 B 运行本命令。所有终端须使用相同的 ZC_DESKTOP_STATE 设置。')
 s = json.loads((h / 'active.json').read_text())
