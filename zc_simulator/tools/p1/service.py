@@ -110,7 +110,10 @@ class Session:
             if sha(name) != expected:
                 raise ProtocolError('configured image/input changed: '+name)
         self.run_number += 1
-        log = (self.work/f'spike-{self.session}-{self.run_number}.log').open('w')
+        seconds, nanos = divmod(time.time_ns(), 1_000_000_000)
+        stamp = time.strftime('%Y-%m-%d_%H-%M-%S', time.gmtime(seconds))
+        log_path = self.work / f'spike-{stamp}.{nanos:09d}Z-run{self.run_number}.log'
+        log = log_path.open('x')
         cmd = [self.config['spike'], f'--p1-ddr0-fd={self.fds[0]}',
                f'--p1-ddr1-fd={self.fds[1]}', '--isa='+self.config['isa'],
                '--runtime-func', self.config['firmware'], '-cfg', self.config['cfg']]
@@ -122,7 +125,7 @@ class Session:
                 stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         finally:
             log.close()
-        self.record('spawn', pid=self.proc.pid)
+        self.record('spawn', pid=self.proc.pid, log=log_path.name)
         self.state, self.pending = 'STARTING', request
         self.deadline = time.monotonic() + self.ready_timeout
 
