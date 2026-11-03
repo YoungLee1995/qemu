@@ -15,6 +15,6 @@
     "images/mcu.bin": "2840450d52fd5bff07ca4857e0c01db2de294e1f37657bdc4fcb3a0f69037afd",
     "images/npu.bin": "2fd518df1efee213c3af910f7c63a43ff4d32c6e5b82c7ad3a71088dfaa497e6",
     "service/protocol.py": "c58c65f9bba7f121f87042f0f4b75ee4c9866ec373103f5e845275c410d2e704",
-    "service/service.py": "f69e2e278cabc4d3c59044b548e282f3b663b72a4bcff64ba3ab1ba92204000c"
+    "service/service.py": "bf57d769ac263584ed000ce0f31935421ebb867968de2486dded68ae127f6895"
   }
 }

@@ -43,7 +43,7 @@ def inputs(args, directory):
     firmware = (args.firmware or bundle / 'images/firmware.riscv').resolve()
     spike = bundle / 'bin/spike'
     return dict(spike=str(spike), firmware=str(firmware), isa=ISA,
-                cfg=str(cfg), cwd=str(directory), p2=True, ready_cores=args.cores,
+                cfg=str(cfg), cwd=str(directory), p2=True,
                 sha256={str(p): digest(p) for p in files + [cfg, spike, firmware,
                                                           bundle / 'bin/sm_system.cfg']})
 

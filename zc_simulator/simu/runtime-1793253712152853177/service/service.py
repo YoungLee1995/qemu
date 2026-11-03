@@ -178,13 +178,14 @@ class Session:
     def tick(self):
         if self.state == 'STARTING':
             if self.proc.poll() is not None:
-                raise ProtocolError('backend exited before software ready')
-            if struct.unpack_from('<II', self.maps[1], CONTROL+16) == (1, 1):
-                struct.pack_into('<II', self.maps[2], 0x404, self.epoch, 1)
-                self.state = 'READY'
-                self.reply(SOFTWARE_READY, self.pending)
-                self.pending = None
-                self.deadline = time.monotonic()+30
+                raise ProtocolError('backend exited during transport startup')
+            # Transport is established once Spike is running. Device firmware
+            # readiness belongs to Host <-> SCU/IPC, not private DDR flags.
+            struct.pack_into('<II', self.maps[2], 0x404, self.epoch, 1)
+            self.state = 'READY'
+            self.reply(SOFTWARE_READY, self.pending)
+            self.pending = None
+            self.deadline = time.monotonic()+30
         elif self.state == 'READY' and self.proc.poll() is not None:
             code = self.proc.returncode
             self.reap()

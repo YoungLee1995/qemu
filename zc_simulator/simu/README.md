@@ -2,7 +2,7 @@
 
 本目录由 `p5/run_linux.py` 管理，用于随 QEMU 项目交付双卡/八卡 Linux 多卡互访实验，不包含 simu C/C++ 模型源码。包中保留 Python 生命周期/协议/fabric 服务。
 
-首次使用见 [克隆后构建与运行简易指南](../克隆后构建与运行简易指南.md)。
+首次使用见 [克隆后构建与运行简易指南](../完整构建与运行指南.md)。
 
 ## 生成与使用
 
@@ -76,6 +76,6 @@ git add -f "zc_simulator/simu/$simu_release" zc_simulator/simu/current
 - Spike 仍动态依赖宿主 glibc/libstdc++/OpenMP、Boost Regex 1.74、ICU 70 等；以 `host-dependencies.txt` 和接收机 `ldd bin/spike` 为准。二进制包不是跨所有发行版通用的静态程序。
 - 对方可自行编译 QEMU；simu 不需要重新编译。QEMU 自身的 BIOS/ROM 等资源仍按其正常构建规则准备。
 - 当前独立入口覆盖 P5 Linux 双/八卡、Tensor fixtures、协议、链路校准、通信、IRQ 和 fabric 故障恢复，完整入口见主手册。历史 P0–P4 源码门禁不属于新克隆操作入口。
-- 图形桌面和交互式命令行见 desktop/README.md；外部 Ubuntu 镜像按说明下载，不捆绑大型系统盘。
+- 图形桌面和交互式命令行见统一教程《克隆后构建与运行简易指南.md》；外部 Ubuntu 镜像按说明下载，不捆绑大型系统盘。
 
 实现与本次验证见 [二进制交付实现与验证记录](../p5/P5二进制交付实现与验证记录.md)。

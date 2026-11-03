@@ -5,7 +5,7 @@ layout so the QEMU delivery does not need that repository.
 
 - p1/: backend lifecycle service, wire protocol and memory diagnostic source.
 - p5/: transaction/fabric model, Python communication API, C communication
-  header, task package reader, profiles and MCU/NPU runtime source.
+  headers (zc_comm.h for HDMA queues, zc_host.h for iATU/IPC), task package reader, profiles and MCU/NPU runtime source.
 - p5/runtime/Makefile: needs no external workspace path;
   BASE resolves to this repository's zc_simulator/p2/runtime. Override
   RISCV_PREFIX when the bare-metal compiler is not on PATH.

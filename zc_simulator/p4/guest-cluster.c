@@ -94,7 +94,7 @@ int main(void){
         snprintf(path,sizeof(path),"%s/resource4",c->path);volatile uint32_t *b=mapping(path,0x20020000);
         c->service=b+0x10000000/4;c->payload=b+0x20000000/4;c->ipc=b+0x18103180/4;
         for(unsigned j=0;j<6000&&c->bar[2]!=1;j++)usleep(10000);
-        check(c->bar[2]==1,"real runtime ready");
+        check(c->bar[2]==1,"backend transport ready");
         volatile uint32_t *r=c->bar+0x300100/4;uint64_t a=peer(i);
         r[1]=0;r[0]=0;r[2]=a;r[3]=a>>32;r[4]=a+0x1ffff;r[5]=0x20010000;r[6]=0;fence();r[1]=1u<<31;
         printf("P4_PROBE card=%u path=%s node=%s iova=%llx\n",i,c->path,c->node,(unsigned long long)c->iova);

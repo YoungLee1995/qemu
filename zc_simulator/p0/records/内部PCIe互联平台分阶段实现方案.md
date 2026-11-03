@@ -1,30 +1,30 @@
-> 2026-10-29 P5 输入冻结：用户确认没有额外工具链任务/接口/通信库资料，以现有 pcie-demo、host-demo 和 simulator 为全部输入；通信接口、测试及 runtime 缺口由本项目开发。P5 软件阶段已完成：`p5_full_exit=true`，18 项测试与 379 项专项检查通过，77 项摘要一致；完整 P4→P1 回归通过。实现与复现见 [P5 README](p5/README.md)，最终结果见 [P5执行与验收记录](p5/P5执行与验收记录.md)。
+> 2026-10-29 P5 输入冻结：用户确认没有额外工具链任务/接口/通信库资料，以现有 pcie-demo、host-demo 和 simulator 为全部输入；通信接口、测试及 runtime 缺口由本项目开发。P5 软件阶段已完成：`p5_full_exit=true`，18 项测试与 379 项专项检查通过，77 项摘要一致；完整 P4→P1 回归通过。实现与复现见 [P5 README](../../p4/README.md)，最终结果见 [P5执行与验收记录](../../p5/P5执行与验收记录.md)。
 
 > 计划修订：P0—P4 已完成软件功能基线；新增正式 **P5：原始需求补齐与联合验收**，统一承担真实任务/队列、通信库、硬件 IRQ/错误/复位以及 PCIe 协议与性能模型。P5 未完成前，不宣告项目全部需求完成。外部输入清单及提供时点见第 8.1 节；可选多 die/冷启动扩展调整为 P6。
 
-> 2026-10-28 最新结论：P4 八卡软件功能闭环完成（`p4_full_exit=true`，40 项摘要一致）。已实现八卡自动配置、八个独立常驻后端、完整三组 BAR、四组合全 56 卡对、八卡 Host/peer/Tensor、24 组在途故障隔离及恢复。八卡专项 1964 项、Linux 八卡专项 15 项及完整 P3/P2/P1 回归全部通过；生产硬件兼容性与后续性能模型仍单列。实现和证据见 [P4执行与验收记录](p4/P4执行与验收记录.md)，启动方式见 [P4 README](p4/README.md)。
+> 2026-10-28 最新结论：P4 八卡软件功能闭环完成（`p4_full_exit=true`，40 项摘要一致）。已实现八卡自动配置、八个独立常驻后端、完整三组 BAR、四组合全 56 卡对、八卡 Host/peer/Tensor、24 组在途故障隔离及恢复。八卡专项 1964 项、Linux 八卡专项 15 项及完整 P3/P2/P1 回归全部通过；生产硬件兼容性与后续性能模型仍单列。实现和证据见 [P4执行与验收记录](../../p4/P4执行与验收记录.md)，启动方式见 [P4 README](../../p4/README.md)。
 
-> P3 历史闭环结论：P3 双卡软件功能闭环完成（`p3_full_exit=true`）。两类引擎双向 P2P、真实 Tensor、Host IOMMU/peer 并存、在途重配及断连/reset 恢复共 428 项通过；完整 P2/P1 回归通过，34 项源码/产物摘要一致。证据见 [P3执行与验收记录](p3/P3执行与验收记录.md)，启动与运行流程见 [P3 README](p3/README.md)。P4 八卡已由本文顶部最新结论覆盖，生产硬件兼容性继续单列；下文此前状态保留为历史。
+> P3 历史闭环结论：P3 双卡软件功能闭环完成（`p3_full_exit=true`）。两类引擎双向 P2P、真实 Tensor、Host IOMMU/peer 并存、在途重配及断连/reset 恢复共 428 项通过；完整 P2/P1 回归通过，34 项源码/产物摘要一致。证据见 [P3执行与验收记录](../../p3/P3执行与验收记录.md)，启动与运行流程见 [P3 README](../../p4/README.md)。P4 八卡已由本文顶部最新结论覆盖，生产硬件兼容性继续单列；下文此前状态保留为历史。
 
-> 最新结论：P2 单卡软件功能已闭环（`p2_full_exit=true`），可以进入 P3。本轮补齐原 Tensor 四组合和两引擎读写在途 reset/断连矩阵，完整 P1 回归通过；硬件兼容性差异仍单列。验收范围与证据见 [P2闭环验收记录](p2/P2闭环验收记录.md)。下文此前未关闭状态保留为历史。
+> 最新结论：P2 单卡软件功能已闭环（`p2_full_exit=true`），可以进入 P3。本轮补齐原 Tensor 四组合和两引擎读写在途 reset/断连矩阵，完整 P1 回归通过；硬件兼容性差异仍单列。验收范围与证据见 [P2闭环验收记录](../../p2/P2闭环验收记录.md)。下文此前未关闭状态保留为历史。
 
-> 2026-10-28 P2扩展：已补 MCU 本地中断软件接线、NPU 可恢复交易错误、32 region inbound Memory 子集与 MCU 文件 IPC 消费者，并扩展故障重试矩阵。物理 IRQ 编号、硬件通道错误 ABI、生产 Tensor 文件解析及全部竞争矩阵仍单列，详细状态见 [P2扩展实现说明](p2/P2扩展实现说明.md)。
+> 2026-10-28 P2扩展：已补 MCU 本地中断软件接线、NPU 可恢复交易错误、32 region inbound Memory 子集与 MCU 文件 IPC 消费者，并扩展故障重试矩阵。物理 IRQ 编号、硬件通道错误 ABI、生产 Tensor 文件解析及全部竞争矩阵仍单列，详细状态见 [P2扩展实现说明](../../p2/P2扩展实现说明.md)。
 
 # 内部 PCIe 互联平台分阶段实现方案
 
-> 2026-10-28 P2首轮实现：已新增function绑定的Host访问服务、HDMA子集、MCU寄存器代理、原NPU外部DMA及四组合/Linux驱动联合测试。完整P2尚未关闭，后续按本地IRQ、可恢复NPU错误、inbound/文件IPC及扩展矩阵顺序推进。代码入口与同批证据见 [P2执行与验收](p2/P2执行与验收记录.md)。
+> 2026-10-28 P2首轮实现：已新增function绑定的Host访问服务、HDMA子集、MCU寄存器代理、原NPU外部DMA及四组合/Linux驱动联合测试。完整P2尚未关闭，后续按本地IRQ、可恢复NPU错误、inbound/文件IPC及扩展矩阵顺序推进。代码入口与同批证据见 [P2执行与验收](../../p2/P2执行与验收记录.md)。
 
-> 最新实现：三个BAR已对齐为64位，大小4MiB/32MiB/32GiB，前两个non-prefetchable、最后一个prefetchable。当前代码与旧实验profile不同；最新运行配置、P2准备项和证据见 [BAR对齐与P2准备](p1/P2开发前准备与BAR对齐验收.md)。下文旧大小及“尚未修改”描述仅保留为历史。
+> 最新实现：三个BAR已对齐为64位，大小4MiB/32MiB/32GiB，前两个non-prefetchable、最后一个prefetchable。当前代码与旧实验profile不同；最新运行配置、P2准备项和证据见 [BAR对齐与P2准备](../../p1/P2开发前准备与BAR对齐验收.md)。下文旧大小及“尚未修改”描述仅保留为历史。
 
-> 2026-10-28 BAR补充确认：用户提供硬件为三个64位BAR，BAR0=4MiB/non-prefetchable、BAR2=32MiB/non-prefetchable、BAR4=32GiB/prefetchable。当前代码仍是原P1实验布局，硬件profile尚未修改/复验；后续调整与历史启动panic说明见 [BAR属性确认](p1/BAR硬件属性确认与接入调整.md)。
+> 2026-10-28 BAR补充确认：用户提供硬件为三个64位BAR，BAR0=4MiB/non-prefetchable、BAR2=32MiB/non-prefetchable、BAR4=32GiB/prefetchable。当前代码仍是原P1实验布局，硬件profile尚未修改/复验；后续调整与历史启动panic说明见 [BAR属性确认](../../p1/BAR硬件属性确认与接入调整.md)。
 
-> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](p1/P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
+> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](../../p1/P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
 
-> 2026-10-27 实施进度：P0 基线/设计已完成，P1-A 单卡共享内存接入已运行通过：Host → BAR/mailbox → MCU/NPU 原 Tensor → 共享结果，并验证 Host demo 驱动/应用发现、coherent mmap、MSI-X 和空闲 reset。完整 P1 仍需 P1-B 会话协议及通用恢复服务；P2 外部 DMA 未实现。详见 [P1 运行与验收](p1/P1执行与验收记录.md)，其中第 5 节列出剩余开发顺序。
+> 2026-10-27 实施进度：P0 基线/设计已完成，P1-A 单卡共享内存接入已运行通过：Host → BAR/mailbox → MCU/NPU 原 Tensor → 共享结果，并验证 Host demo 驱动/应用发现、coherent mmap、MSI-X 和空闲 reset。完整 P1 仍需 P1-B 会话协议及通用恢复服务；P2 外部 DMA 未实现。详见 [P1 运行与验收](../../p1/P1执行与验收记录.md)，其中第 5 节列出剩余开发顺序。
 
-> 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](p0/Host-demo接入影响评估.md)。
+> 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](../Host-demo接入影响评估.md)。
 
-更新日期：2026-10-27。用途：内部联合仿真开发、任务拆分和验收。本文及后续 AI 辅助实验产物不用于 QEMU 上游贡献，遵循 [QEMU 内容来源政策](../docs/devel/code-provenance.rst)。
+更新日期：2026-10-27。用途：内部联合仿真开发、任务拆分和验收。本文及后续 AI 辅助实验产物不用于 QEMU 上游贡献，遵循 [QEMU 内容来源政策](../../../docs/devel/code-provenance.rst)。
 
 当前代码准入结论与本轮重跑证据见 [P0 阶段准入评估与 P 阶段开发方案](P0阶段准入评估与P阶段开发方案.md)：runtime 已完成硬件对齐；P0 可复现基线与适配设计已收敛完成，进入 P1 PCIe 接入。现有 Zebu `pcie-demo`/寄存器手册是 PCIe 参考，复用 stage1 来宾环境及接入成果，不等待额外 runtime 镜像或独立 Host 驱动。
 
@@ -32,7 +32,7 @@
 
 构建一个 Host/Root Complex、一个 PCIe switch、八个 NPU PCIe device 的功能仿真平台，让硬件平台对应的 Host Linux 驱动与现有 MCU runtime/NPU 任务在软件环境中联合运行，验证任务下发、数据搬运、地址隔离、跨卡访问、通知、错误和复位。平台用于驱动及设备软件联调，提供后续协议与性能模型的功能基线。
 
-当前范围与架构以 [PCIE Switch 集群功能仿真器](PCIE%20Switch集群功能仿真器.md) 为准；[EMU demo 可行性分析](EMU参考demo转软件仿真可行性分析.md)补充已有源码/手册的利用方式和静态疑点。[群内对话技术总结](群内对话技术总结.md)及[工具链组需求清单](工具链组需求清单pci-switch-8card-simulator-requirements.md)保留需求来源，冲突处服从新架构。寄存器与协议的具体行为仍以锁定版本的真实软件和硬件资料为准。
+当前范围与架构以 [PCIE Switch 集群功能仿真器](PCIE%20Switch集群功能仿真器.md) 为准；[EMU demo 可行性分析](EMU参考demo转软件仿真可行性分析.md)补充已有源码/手册的利用方式和静态疑点。[群内对话技术总结](../../p5/records/群内对话技术总结.md)及[工具链组需求清单](../../p5/records/工具链组需求清单pci-switch-8card-simulator-requirements.md)保留需求来源，冲突处服从新架构。寄存器与协议的具体行为仍以锁定版本的真实软件和硬件资料为准。
 
 ### 1.1 本次明确的范围调整
 
@@ -207,7 +207,7 @@ P2-H/P2-N 共用基础设施后可分别开发，无“HDMA 先完成”的强�
 
 ### 第三阶段 / P3：双卡 P2P 与隔离
 
-**2026-10-28 执行结果：下列软件功能步骤已完成，完整 P3 门禁通过。** 实现、边界、复现和证据见 [P3 README](p3/README.md) 与 [验收记录](p3/P3执行与验收记录.md)。目标下游窗口独立分配；卡间请求只经过共同 switch 以下路由，不绕经 Host IOMMU 或 staging。
+**2026-10-28 执行结果：下列软件功能步骤已完成，完整 P3 门禁通过。** 实现、边界、复现和证据见 [P3 README](../../p4/README.md) 与 [验收记录](../../p3/P3执行与验收记录.md)。目标下游窗口独立分配；卡间请求只经过共同 switch 以下路由，不绕经 Host IOMMU 或 staging。
 
 1. 增加第二 endpoint/后端和共享 DDR，接软件下发的动态 peer BAR 与转换表。
 2. 实现 switch 功能路由及目标 inbound，检查拓扑、窗口、解码、权限和设备状态。
@@ -219,7 +219,7 @@ P2-H/P2-N 共用基础设施后可分别开发，无“HDMA 先完成”的强�
 
 ### 第四阶段 / P4：八卡首期功能交付
 
-**2026-10-28 执行结果：下列首期软件功能步骤已完成，统一门禁通过。** 八卡常驻后端、四组合全 56 对、原驱动八卡任务和在途隔离已验收；linked 动态多目标仍采用全 fabric 保守取消，外部通信库/生产多队列 ABI 不计作已验收。交付入口与逐项覆盖见 [P4 README](p4/README.md)、[需求覆盖与交付清单](p4/P4需求覆盖与交付清单.md)。
+**2026-10-28 执行结果：下列首期软件功能步骤已完成，统一门禁通过。** 八卡常驻后端、四组合全 56 对、原驱动八卡任务和在途隔离已验收；linked 动态多目标仍采用全 fabric 保守取消，外部通信库/生产多队列 ABI 不计作已验收。交付入口与逐项覆盖见 [P4 README](../../p4/README.md)、[需求覆盖与交付清单](../../p4/P4需求覆盖与交付清单.md)。
 
 1. 自动生成八端口拓扑、BAR/桥窗口、BDF、后端 ID、共享内存和 socket；按真实 BAR 尺寸重新验资源分配。
 2. 一个 QEMU 启动八个独立后端，每卡一个 MCU、一个 NPU，发布各卡 ready；清单记录创建/启用核数及卡内存容量。
@@ -251,7 +251,7 @@ P2-H/P2-N 共用基础设施后可分别开发，无“HDMA 先完成”的强�
 
 模型边界：整数虚拟时间、显式 24 B framing、Gen3/4/5 的 128b/130b 编码和 credit/仲裁事件；实际 DMA 按完整准入片段获批后提交，非逐 TLP 数据副作用；CPU 指令与 PCIe 不共用周期时间轴。实际 QEMU 内存成功与虚拟准入时间分开记录，不将宿主墙钟或准入字节当作物理 PCIe 时延/已提交字节。
 
-P5 的执行结果与完整覆盖表见 [验收记录](p5/P5执行与验收记录.md)、[需求覆盖与接口基线](p5/P5需求覆盖与接口基线.md)。可选多 die/冷启动扩展仍在 P6，不作为 P5 前置条件。
+P5 的执行结果与完整覆盖表见 [验收记录](../../p5/P5执行与验收记录.md)、[需求覆盖与接口基线](../../p5/P5需求覆盖与接口基线.md)。可选多 die/冷启动扩展仍在 P6，不作为 P5 前置条件。
 
 ### 第六阶段 / P6：可选单卡多 die 与启动扩展
 
@@ -372,8 +372,8 @@ flowchart LR
 | 方向 | 入口及用途 |
 | --- | --- |
 | 历史单 die/假包实验 | [实施指南](单die信息包执行闭环实施指南.md)、[首轮执行报告](单die信息包闭环首轮执行报告.md)：保留历史参考，不作为重新设计runtime的当前任务 |
-| 第一阶段 QEMU 实验 | [验收报告](第一阶段QEMU接入复现与验收报告.md)、[接口决策](第一阶段接口决策与待办清单.md)、[实验EP](../hw/misc/zc-pcie-sim.c)、[桥接](stage1/simu_bridge.py)：保留独立回归及错误/非阻塞处理经验 |
-| EMU与寄存器参考 | [可行性分析](EMU参考demo转软件仿真可行性分析.md)、[demo](../../simulator/pcie-demo)、[手册](../../simulator/寄存器手册)：运行期契约需与实际版本核对 |
+| 第一阶段 QEMU 实验 | [验收报告](第一阶段QEMU接入复现与验收报告.md)、[接口决策](第一阶段接口决策与待办清单.md)、[实验EP](../../../hw/misc/zc-pcie-sim.c)、[桥接](../../stage1/simu_bridge.py)：保留独立回归及错误/非阻塞处理经验 |
+| EMU与寄存器参考 | [可行性分析](EMU参考demo转软件仿真可行性分析.md)、[demo](../../../../simulator/pcie-demo)、[手册](../../../../simulator/寄存器手册)：运行期契约需与实际版本核对 |
 | QEMU 拓扑 | `docs/pcie.txt`、`hw/pci-bridge/gen_pcie_root_port.c`、`xio3130_upstream.c`、`xio3130_downstream.c` |
 | EP/DMA/IOMMU API | `hw/misc/edu.c`、`include/hw/pci/pci_device.h`、`hw/pci/pci.c`、`hw/i386/intel_iommu.c` |
 | 内存与模型测试 | `docs/devel/memory.rst`、`tests/qtest/pci-test.c`、`tests/qtest/intel-iommu-test.c`、`tests/qtest/libqos/` |

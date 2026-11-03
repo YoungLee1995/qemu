@@ -84,11 +84,10 @@ l1buf_output_num:0
                               pass_fds=self.fds,stdout=log,stderr=subprocess.STDOUT)
         log.close()
         self.last_pid=proc.pid
-        deadline=time.monotonic()+ready_timeout
-        while struct.unpack_from('<II',self.maps[1],CONTROL+16)!=(1,1):
-            if proc.poll() is not None or time.monotonic()>deadline:
-                stop(proc);raise RuntimeError(f'software ready failed: {work}')
-            time.sleep(.005)
+        # Transport ready is independent of firmware-specific DDR flags.
+        # Host firmware readiness is negotiated over the device IPC protocol.
+        if proc.poll() is not None:
+            stop(proc);raise RuntimeError(f'backend exited during startup: {work}')
         struct.pack_into('<II',self.maps[2],0x404,self.epoch,1)
         def watch():
             proc.wait()

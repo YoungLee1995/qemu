@@ -2,7 +2,7 @@
 
 日期：2026-10-26。范围：内部平台、本地实验、需求方授权的假包与最小 MCU runtime。关联[总体方案](内部PCIe互联平台分阶段实现方案.md)、[simu 首轮报告](单die信息包闭环首轮执行报告.md)及[接口决策与待办](第一阶段接口决策与待办清单.md)。
 
-> 2026-10-27 范围澄清：本文保留第一阶段实际验收事实。用户确认 simu 内部 runtime 已与硬件对齐，PCIe 软件参考为现有 Zebu `pcie-demo`；文中“生产 runtime/真实驱动待提供”不再作为 P0 前置。第一阶段已完成实验接入适配，HDMA/iATU/MSI 等 PCIe 模型仍按 P1/P2 实现。最新阶段边界见 [P0执行与验收记录](p0/P0执行与验收记录.md)。
+> 2026-10-27 范围澄清：本文保留第一阶段实际验收事实。用户确认 simu 内部 runtime 已与硬件对齐，PCIe 软件参考为现有 Zebu `pcie-demo`；文中“生产 runtime/真实驱动待提供”不再作为 P0 前置。第一阶段已完成实验接入适配，HDMA/iATU/MSI 等 PCIe 模型仍按 P1/P2 实现。最新阶段边界见 [P0执行与验收记录](../P0执行与验收记录.md)。
 
 ## 1. 阶段结论与边界
 
@@ -133,16 +133,16 @@ GUEST_RESULT=0
 
 ## 6. 验收证据索引
 
-本仓库内另保存[验收结果快照](stage1/evidence/summary.json)、[验收摘要](stage1/evidence/验收摘要.log)、[单卡运行哈希清单](stage1/evidence/linux-manifest.json)及[simu 命令 trace](stage1/evidence/simu-trace.json)，便于随代码保存。完整内核日志、构建产物、下载资源和每次实验目录仍位于工作区 `experiments/`；只提交 QEMU 仓库不会自动包含外部 simulator 源码及这些原始产物。
+本仓库内另保存[验收结果快照](../../stage1/evidence/summary.json)、[验收摘要](../../stage1/evidence/验收摘要.log)、[单卡运行哈希清单](../../stage1/evidence/linux-manifest.json)及[simu 命令 trace](../../stage1/evidence/simu-trace.json)，便于随代码保存。完整内核日志、构建产物、下载资源和每次实验目录仍位于工作区 `experiments/`；只提交 QEMU 仓库不会自动包含外部 simulator 源码及这些原始产物。
 
-最终统一验收结果及各单项日志见[阶段验收汇总](../../experiments/qemu_stage1/suite-1793005370866225254/results.json)。汇总目录中的 `linux-simu.log`、`topology8.log` 和故障日志记录了每次运行目录；进入对应目录读取完整内核日志和 simulator trace。
+最终统一验收结果及各单项日志见[阶段验收汇总](../../../../experiments/qemu_stage1/suite-1793005370866225254/results.json)。汇总目录中的 `linux-simu.log`、`topology8.log` 和故障日志记录了每次运行目录；进入对应目录读取完整内核日志和 simulator trace。
 
 补充的首次独立验证记录：
 
-- [单卡 Linux 联调](../../experiments/qemu_stage1/run-1793005288721508614/results.json)。
-- [八 EP 枚举与 BAR 分配](../../experiments/qemu_stage1/run-1793005035877886186/results.json)。
-- [在途复位](../../experiments/qemu_stage1/reset-1793005035819709470/results.json)。
-- [外部资源来源和哈希](../../experiments/qemu_stage1/assets/sources.json)。
+- [单卡 Linux 联调](../../../../experiments/qemu_stage1/run-1793005288721508614/results.json)。
+- [八 EP 枚举与 BAR 分配](../../../../experiments/qemu_stage1/run-1793005035877886186/results.json)。
+- [在途复位](../../../../experiments/qemu_stage1/reset-1793005035819709470/results.json)。
+- [外部资源来源和哈希](../../../../experiments/qemu_stage1/assets/sources.json)。
 
 首次内核下载未完成时启动曾无串口输出，该次验证失败、日志保留。已改为启动前强制核对内核 SHA256，后续验收均使用完整校验后的内核。失败记录不计入通过结果。
 

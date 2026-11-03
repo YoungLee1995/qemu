@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     card->bar = mapping(path, 0x400000);
     snprintf(path, sizeof(path), "%s/resource4", card->path);
     card->service = (volatile uint32_t *)mapping(path, 0x10001000) + 0x10000000 / 4;
-    check(card->bar[2] == 1, "Device runtime ready");
+    check(card->bar[2] == 1, "Backend transport ready");
     fence();
     check(card->service[64] == card->service[11], "mailbox idle (stop other tests)");
     card->task = card->service[11];

@@ -45,7 +45,7 @@
 
 ## 4. 假包实现与调用链
 
-新增代码位于[packet_runtime_test](../../simulator/riscv-tests/packet_runtime_test/实验收包执行说明.md)。
+新增代码位于[packet_runtime_test](../evidence/run-20261027T074921-671052Z/mock-source/实验收包执行说明.md)。
 
 ```text
 Host Python：启动后写入一笔 160 字节假包
@@ -96,12 +96,12 @@ A/B/C 输出 SHA256 均为 `37121ee2cd6afaed02f18587ed683d6fb5d5c4a6cd3b078f682a
 
 ## 6. 文件与复现入口
 
-- [基线运行脚本](../../experiments/single_die_packet/run_baselines.py)：构建完成后执行 dispatch、MoE、mailbox 并保存独立结果。
-- [假包运行脚本](../../simulator/riscv-tests/packet_runtime_test/run_mock.py)：编译实验程序并执行九笔请求测试。
-- [假包格式与实现说明](../../simulator/riscv-tests/packet_runtime_test/实验收包执行说明.md)：包布局、固定地址、入口及限制。
-- [基线结果](../../experiments/single_die_packet/run-20261026T081226-083744Z/results.json)。
-- [假包最终结果](../../experiments/single_die_packet/mock-1793003076810945024/results.json)。
-- [模型回归日志](../../experiments/single_die_packet/single-die-tests.log)、[GDB 追踪](../../experiments/single_die_packet/gdb-trace.log)。
+- [基线运行脚本](../../../../experiments/single_die_packet/run_baselines.py)：构建完成后执行 dispatch、MoE、mailbox 并保存独立结果。
+- [假包运行脚本](../../../../simulator/riscv-tests/packet_runtime_test/run_mock.py)：编译实验程序并执行九笔请求测试。
+- [假包格式与实现说明](../evidence/run-20261027T074921-671052Z/mock-source/实验收包执行说明.md)：包布局、固定地址、入口及限制。
+- [基线结果](../../../../experiments/single_die_packet/run-20261026T081226-083744Z/results.json)。
+- [假包最终结果](../../../../experiments/single_die_packet/mock-1793003076810945024/results.json)。
+- [模型回归日志](../../../../experiments/single_die_packet/single-die-tests.log)、[GDB 追踪](../../../../experiments/single_die_packet/gdb-trace.log)。
 
 ```bash
 cd /workspace/GIT/pcie_qemu

@@ -17,7 +17,7 @@ def main():
                     help='One single-die model process per card/instance')
     args = ap.parse_args()
     if args.mode == 'backend' and args.cores == 'npu':
-        ap.error('QEMU backend requires an MCU implementing its ready/session ABI')
+        ap.error('QEMU backend currently supports --cores both or mcu; use standalone for npu-only')
     if args.cores == 'mcu' and args.npu_bin:
         ap.error('--npu-bin requires --cores both or npu')
     if args.cores == 'npu' and args.mcu_bin:

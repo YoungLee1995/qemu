@@ -19,7 +19,7 @@ python3 qemu/zc_simulator/p1/run_faults.py
 
 第一条构建 Spike、QEMU、firmware、实验 MCU/NPU 程序、来宾测试程序和 Host demo 的适配副本，再运行 Linux 与 qtest。已有最新构建时可以加 `--skip-build` 跳过 Spike/QEMU/firmware；实验 runtime 和来宾测试仍重建。省略 `--host-demo` 可以单独运行 BAR/mailbox 任务链路。第二条依赖上述构建，验证异常、双 function backing 隔离和共享 mailbox 的原 ECLIC 用例。
 
-依赖已有 stage1 的固定 Linux 内核、BusyBox rootfs、QEMU 构建目录，及单 die baseline 目录中 SHA256 为 `37121ee2cd6afaed02f18587ed683d6fb5d5c4a6cd3b078f682a77891fe7e015` 的 33792 字节输出。缺失时先按 [stage1 报告](../第一阶段QEMU接入复现与验收报告.md) 和 [单 die 指南](../单die信息包执行闭环实施指南.md) 恢复；脚本不会自动接受另一份参考结果。默认 RISC-V 工具路径为 `/data/nuclei/gcc/bin/riscv64-unknown-elf-`。`--host-demo` 首次运行需联网下载固定 SHA256 的来宾 headers 和构建依赖 APK，只解压到 evidence，不安装宿主包。
+依赖已有 stage1 的固定 Linux 内核、BusyBox rootfs、QEMU 构建目录，及单 die baseline 目录中 SHA256 为 `37121ee2cd6afaed02f18587ed683d6fb5d5c4a6cd3b078f682a77891fe7e015` 的 33792 字节输出。缺失时先按 [stage1 报告](../p0/records/第一阶段QEMU接入复现与验收报告.md) 和 [单 die 指南](../p0/records/单die信息包执行闭环实施指南.md) 恢复；脚本不会自动接受另一份参考结果。默认 RISC-V 工具路径为 `/data/nuclei/gcc/bin/riscv64-unknown-elf-`。`--host-demo` 首次运行需联网下载固定 SHA256 的来宾 headers 和构建依赖 APK，只解压到 evidence，不安装宿主包。
 
 产物位于忽略的 `p1/evidence/run-*`、`faults-*`；失败也保留日志。源码适配补丁 `host-demo.patch` 纳入版本管理，`simulator/host-demo` 原文件保持不变。运行记录采用 UTC 时间/时间戳。
 

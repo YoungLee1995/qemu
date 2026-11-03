@@ -9,7 +9,7 @@ python3 simulator/tools/p1/service.py \
   --work /absolute/path/backend-logs
 ```
 
-配置 JSON 的 `spike/firmware/cfg/cwd` 为绝对路径，`isa` 为现有 ISA 配置，`sha256` 是所有镜像、配置、输入文件及 Spike 的内容哈希表。服务打印的摘要是整个 JSON 原始字节的 SHA256；QEMU 用 `config-sha256` 校验同一配置。自动验收生成配置样例，入口见 [P1 文档](../../../qemu/zc_simulator/p1/README.md)。应使用固定路径和内容，不在服务运行中编辑输入。
+配置 JSON 的 `spike/firmware/cfg/cwd` 为绝对路径，`isa` 为现有 ISA 配置，`sha256` 是所有镜像、配置、输入文件及 Spike 的内容哈希表。服务打印的摘要是整个 JSON 原始字节的 SHA256；QEMU 用 `config-sha256` 校验同一配置。自动验收生成配置样例，入口见 [P1 文档](../../p4/README.md)。应使用固定路径和内容，不在服务运行中编辑输入。
 
 QEMU 参数：
 
@@ -23,7 +23,7 @@ QEMU 参数：
 
 `protocol.py` 定义 48 字节小端帧头：magic/version/type/payload_len/card/session/epoch/request/flags/reserved，最大 payload 64KiB。request 单调递增非零；事件 request=0/flags=1；普通应答与请求对应。未知版本、身份、保留位、长度、重复请求、未协商能力、错误状态转移均失败。完整帧一次 seqpacket 发送，不截断后执行。
 
-当前 capabilities=15，只支持共享 DDR、共享 mailbox、reset、stop。消息为 HELLO/ACK、MEM_SETUP/READY、START/SOFTWARE_READY、PING/PONG、QUIESCE/QUIESCED、RESET/ACK、STOP/STOPPED、ERROR。MEM_SETUP 必须带三个独立 sealed FD，区域描述符 `<QQII>` 指定 base/size/FD index/flags；精确检查大小、顺序、索引和禁止 resize 的 seals。映射失败关闭已接收 FD。映射成功后仍需 START 和实际 MCU/NPU ready，不能以连接成功表示软件 ready。
+当前 capabilities=15，只支持共享 DDR、共享 mailbox、reset、stop。消息为 HELLO/ACK、MEM_SETUP/READY、START/SOFTWARE_READY、PING/PONG、QUIESCE/QUIESCED、RESET/ACK、STOP/STOPPED、ERROR。MEM_SETUP 必须带三个独立 sealed FD，区域描述符 `<QQII>` 指定 base/size/FD index/flags；精确检查大小、顺序、索引和禁止 resize 的 seals。映射失败关闭已接收 FD。映射成功后仍需 START 并成功启动 Spike；SOFTWARE_READY 是沿用的协议消息名称，仅表示传输会话已建立，不检查 DDR 中 MCU/NPU ready。设备业务就绪由 Host 通过 SCU/IPC 判断。
 
 `HELLO → MEMORY → MEMORY_READY → STARTING → READY`；QUIESCE 回收旧进程，返回 outstanding=0，才允许新 epoch RESET/START。STOP 与任务完成分开。模型正常 STOP 发事件；异常退出、超时、断连先停止并回收旧进程，再释放映射和会话。版本/配置不匹配不启动 Spike。连接内握手阶段有期限、ready 默认 20秒、ready 后30秒未收到 heartbeat 会终止会话；QEMU 每秒 heartbeat、默认请求超时30秒，均有有限等待。
 

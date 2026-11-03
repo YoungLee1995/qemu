@@ -1,12 +1,12 @@
-> 2026-10-28 当前阶段：P2 单卡软件功能出口已通过，可进入 P3；实际 Tensor 四组合、两引擎在途恢复与完整 P1 回归见 [P2闭环验收记录](p2/P2闭环验收记录.md)。硬件兼容性差异不冒充已确认。
+> 2026-10-28 当前阶段：P2 单卡软件功能出口已通过，可进入 P3；实际 Tensor 四组合、两引擎在途恢复与完整 P1 回归见 [P2闭环验收记录](../../p2/P2闭环验收记录.md)。硬件兼容性差异不冒充已确认。
 
 # P0 阶段准入评估与 P 阶段开发方案
 
-> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](p1/P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
+> 2026-10-28 最新状态：P1会话服务、SCM_RIGHTS、配置/身份校验、超时与断连/reset恢复已实现；完整P1按单卡软件功能profile v1通过统一出口。详见 [P1闭环验收记录](../../p1/P1闭环验收记录.md)。下文P1-A“尚未关闭”及待实施描述保留为历史记录，以最新闭环记录为准。
 
-> 2026-10-27 P1 实施更新：已完成 P1-A 单卡共享 DDR/mailbox、软件 ready、三次真实 Tensor、Host demo probe/mmap/MSI-X 及基础 reset 的运行验收。原 P1-02 socket 会话/通用服务仍待 P1-B，完整 P1 尚未关闭。最新实现、开发步骤与证据见 [P1 执行记录](p1/P1执行与验收记录.md) 和 [运行入口](p1/README.md)。下文 P0 调查中的“待 P1 实现”保留为历史阶段描述。
+> 2026-10-27 P1 实施更新：已完成 P1-A 单卡共享 DDR/mailbox、软件 ready、三次真实 Tensor、Host demo probe/mmap/MSI-X 及基础 reset 的运行验收。原 P1-02 socket 会话/通用服务仍待 P1-B，完整 P1 尚未关闭。最新实现、开发步骤与证据见 [P1 执行记录](../../p1/P1执行与验收记录.md) 和 [运行入口](../../p4/README.md)。下文 P0 调查中的“待 P1 实现”保留为历史阶段描述。
 
-> 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](p0/Host-demo接入影响评估.md)。
+> 2026-10-27 Host demo 增量：已收到 `simulator/host-demo`（Linux PCI驱动和应用）。P0基线/设计完成结论保留，Host侧参考更新为该demo；新增设备ID `16c3:abcd`、2MiB coherent DMA、MSI-X、BAR2/BAR4文件传输契约。旧文中“无独立Host驱动/仅stage1测试端”描述已由此补齐；demo尚未在来宾联合验收。接口细节、源码问题及P1/P2调整见 [Host-demo接入影响评估](../Host-demo接入影响评估.md)。
 
 日期：2026-10-27。范围：内部功能联合仿真。依据：[项目架构](PCIE%20Switch集群功能仿真器.md)、[总体分阶段方案](内部PCIe互联平台分阶段实现方案.md)、[单 die 调试指南](单die信息包执行闭环实施指南.md)、[首轮执行记录](单die信息包闭环首轮执行报告.md)，以及当前工作区代码和本轮回归。本文保留准入调查及后续计划，并按用户最新澄清收敛 P0：simu 内部 runtime 已与硬件对齐，直接复用；PCIe 参考以现有 Zebu demo/寄存器手册为准。P0 基线与适配设计已完成，进入 P1；不表示 PCIe 全功能已实现。最新结论见第 11 节。
 
@@ -214,10 +214,10 @@ flowchart LR
 
 本轮结果与哈希快照已随文档保存：
 
-- [评估摘要](p0/evidence/summary.json)、[源码与测试产物哈希](p0/evidence/source-and-tests-sha256.json)。
-- [基线结果](p0/evidence/baseline-results.json)、[基线产物哈希](p0/evidence/baseline-manifest.json)。
-- [假包结果](p0/evidence/mock-results.json)、[假包产物与配置哈希](p0/evidence/mock-manifest.json)。
-- [中断及standalone测试清单](p0/evidence/assessment-results.json)、[双MCU日志](p0/evidence/dual-mcu-irq.log)、[四核正常日志](p0/evidence/single-die.log)、[retry日志](p0/evidence/single-die-retry.log)。
+- [评估摘要](../evidence/summary.json)、[源码与测试产物哈希](../evidence/source-and-tests-sha256.json)。
+- [基线结果](../evidence/baseline-results.json)、[基线产物哈希](../evidence/baseline-manifest.json)。
+- [假包结果](../evidence/mock-results.json)、[假包产物与配置哈希](../evidence/mock-manifest.json)。
+- [中断及standalone测试清单](../evidence/assessment-results.json)、[双MCU日志](../evidence/dual-mcu-irq.log)、[四核正常日志](../evidence/single-die.log)、[retry日志](../evidence/single-die-retry.log)。
 
 原始运行目录：
 
@@ -239,11 +239,11 @@ standalone回归可在 `simulator/riscv-isa-sim/smart/mid_perf/tests` 运行 `ma
 
 ## 9. 源码索引
 
-- [smart 创建与推进](../../simulator/riscv-isa-sim/smart/sm_main.cc)、[地址与hart常量](../../simulator/riscv-isa-sim/smart/sm_regs.h)、[dispatcher](../../simulator/riscv-isa-sim/smart/sm_dispatch.cc)。
-- [mailbox实现](../../simulator/riscv-isa-sim/riscv/mbox.cc)、[设备/内存类型](../../simulator/riscv-isa-sim/riscv/devices.h)、[CPU/ECLIC](../../simulator/riscv-isa-sim/riscv/processor.cc)、[MMU](../../simulator/riscv-isa-sim/riscv/mmu.cc)。
-- [内存构造入口](../../simulator/riscv-isa-sim/spike_main/spike.cc)、[稀疏内存实现](../../simulator/riscv-isa-sim/riscv/devices.cc)。
-- [DMA功能执行](../../simulator/riscv-isa-sim/smart/sm_ref_dma.cc)、[box访存与地址构造](../../simulator/riscv-isa-sim/smart/sm_box.cc)、[设备执行与busy](../../simulator/riscv-isa-sim/smart/sm_npu.cc)、[调度](../../simulator/riscv-isa-sim/smart/sm_schedule.cc)、[fence](../../simulator/riscv-isa-sim/smart/sm_fence.cc)。
-- [firmware](../../simulator/riscv-tests/firmware/firmware.c)、[runtime测试说明](../../simulator/riscv-tests/runtime_test/README.md)、[假包实验说明](../../simulator/riscv-tests/packet_runtime_test/实验收包执行说明.md)。
+- [smart 创建与推进](../../../../simulator/riscv-isa-sim/smart/sm_main.cc)、[地址与hart常量](../../../../simulator/riscv-isa-sim/smart/sm_regs.h)、[dispatcher](../../../../simulator/riscv-isa-sim/smart/sm_dispatch.cc)。
+- [mailbox实现](../../../../simulator/riscv-isa-sim/riscv/mbox.cc)、[设备/内存类型](../../../../simulator/riscv-isa-sim/riscv/devices.h)、[CPU/ECLIC](../../../../simulator/riscv-isa-sim/riscv/processor.cc)、[MMU](../../../../simulator/riscv-isa-sim/riscv/mmu.cc)。
+- [内存构造入口](../../../../simulator/riscv-isa-sim/spike_main/spike.cc)、[稀疏内存实现](../../../../simulator/riscv-isa-sim/riscv/devices.cc)。
+- [DMA功能执行](../../../../simulator/riscv-isa-sim/smart/sm_ref_dma.cc)、[box访存与地址构造](../../../../simulator/riscv-isa-sim/smart/sm_box.cc)、[设备执行与busy](../../../../simulator/riscv-isa-sim/smart/sm_npu.cc)、[调度](../../../../simulator/riscv-isa-sim/smart/sm_schedule.cc)、[fence](../../../../simulator/riscv-isa-sim/smart/sm_fence.cc)。
+- [firmware](../../../../simulator/riscv-tests/firmware/firmware.c)、[runtime测试说明](../../p4/README.md)、[假包实验说明](../evidence/run-20261027T074921-671052Z/mock-source/实验收包执行说明.md)。
 - [EMU参考及疑点](EMU参考demo转软件仿真可行性分析.md)、[第一阶段历史验收](第一阶段QEMU接入复现与验收报告.md)。
 
 ## 10. 当前项目直观说明：P0 做了什么，任务怎样运行
@@ -351,14 +351,14 @@ QEMU 来宾 Linux 用户态测试程序
 
 ## 11. P0 收敛结论与后续交接（2026-10-27）
 
-P0 从准入调查进入实际实施。本轮新增[统一构建与回归入口](p0/run_p0.py)，已从空目录构建 Spike、firmware、dispatch、实验 MCU/NPU 程序及 standalone 测试并完成回归。此前“现有二进制与当前源码对应关系尚未通过重建证明”的风险，已在本轮所测 simulator 配置内关闭；QEMU/真实驱动联合构建仍待后续阶段。
+P0 从准入调查进入实际实施。本轮新增[统一构建与回归入口](../run_p0.py)，已从空目录构建 Spike、firmware、dispatch、实验 MCU/NPU 程序及 standalone 测试并完成回归。此前“现有二进制与当前源码对应关系尚未通过重建证明”的风险，已在本轮所测 simulator 配置内关闭；QEMU/真实驱动联合构建仍待后续阶段。
 
 交付入口：
 
-- [P0使用说明](p0/README.md)：单条命令执行、工具依赖、日志/manifest及验收边界。
-- [启动与接口契约](p0/启动与接口契约.json)：实验镜像、入口、核数、mailbox字段、DDR范围及真实接口缺失项。
-- [P1适配设计与验收矩阵](p0/P1适配设计与验收矩阵.md)：共享DDR、同步寄存器访问、消息/线程、reset旧写终止、P1/P2验收输入与判据。
-- [P0执行与验收记录](p0/P0执行与验收记录.md)：P0-01—07逐项状态及本轮实际证据。
+- [P0使用说明](../../p4/README.md)：单条命令执行、工具依赖、日志/manifest及验收边界。
+- [启动与接口契约](../启动与接口契约.json)：实验镜像、入口、核数、mailbox字段、DDR范围及真实接口缺失项。
+- [P1适配设计与验收矩阵](../P1适配设计与验收矩阵.md)：共享DDR、同步寄存器访问、消息/线程、reset旧写终止、P1/P2验收输入与判据。
+- [P0执行与验收记录](../P0执行与验收记录.md)：P0-01—07逐项状态及本轮实际证据。
 
 **当前结论：P0 按现有项目范围完成，进入 P1 PCIe 接入。** 三笔真实 Tensor 执行、五笔非法拒绝、双向/双 MCU mailbox 及 standalone 五项均通过。simu 内部 runtime 按已完成硬件对齐的现状复用；不再要求额外正式镜像、QEMU 磁盘镜像或独立 Host 驱动。PCIe 参考限定为现有 Zebu demo/手册，来宾测试与连接复用 stage1。
 
