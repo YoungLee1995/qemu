@@ -43,9 +43,19 @@ class Session:
         self.run_number = 0
 
     def record(self, event, **values):
-        self.log.write(json.dumps(dict(time_ns=time.time_ns(), card=self.card,
-            session=self.session, epoch=self.epoch, state=self.state, event=event, **values))+'\n')
+        names = {1: 'HELLO', 2: 'HELLO_ACK', 3: 'MEM_SETUP', 4: 'MEM_READY',
+                 5: 'START', 6: 'SOFTWARE_READY', 7: 'QUIESCE', 8: 'QUIESCED',
+                 9: 'RESET', 10: 'RESET_ACK', 11: 'STOP', 12: 'STOPPED',
+                 13: 'ERROR', 14: 'PING', 15: 'PONG'}
+        if 'kind' in values:
+            values['message'] = names.get(values['kind'], 'UNKNOWN')
+            values['direction'] = 'qemu->service' if event == 'request' else 'service->qemu'
+        row = json.dumps(dict(time_ns=time.time_ns(), card=self.card,
+            session=self.session, epoch=self.epoch, state=self.state, event=event, **values))+'\n'
+        self.log.write(row)
         self.log.flush()
+        with (self.work / 'qemu-spike-interaction.jsonl').open('a') as interaction:
+            interaction.write(row)
 
     def reply(self, kind, request, payload=b''):
         send(self.sock, kind, self.card, self.session, self.epoch, request, payload)

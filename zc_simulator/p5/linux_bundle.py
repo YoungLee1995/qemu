@@ -205,9 +205,15 @@ class BundlePlatform(Platform):
         self.wait_socket(self.sockets[i], self.services[i])
 
     def device_args(self):
-        return [a.replace('p4-isolation=on,',
+        args = []
+        for value in super().device_args():
+            value = value.replace('p4-isolation=on,',
                 f'p4-isolation=on,p5-flr=on,p5-fabric-socket={self.fabric_socket},')
-                for a in super().device_args()]
+            if value.startswith('zc-pcie-p1,'):
+                card = value.split('card-id=')[1].split(',')[0]
+                value += f',interaction-log={self.work / ("qemu-spike-card" + card + ".log")}'
+            args.append(value)
+        return args
 
     def close(self):
         try:

@@ -54,6 +54,7 @@ struct ZCP1State {
     uint32_t last_done, notifications, error, epoch;
     bool active, initialized;
     char *backend_socket, *config_sha256;
+    char *interaction_log;
     uint8_t config_digest[32];
     uint32_t card, timeout_ms, target_epoch;
     int session_fd;
@@ -524,6 +525,7 @@ static const Property props[] = {
     DEFINE_PROP_BOOL("p2-trace", ZCP1State, p2.trace, false),
     DEFINE_PROP_BOOL("p2", ZCP1State, p2.enabled, false),
     DEFINE_PROP_STRING("backend-socket", ZCP1State, backend_socket),
+    DEFINE_PROP_STRING("interaction-log", ZCP1State, interaction_log),
     DEFINE_PROP_STRING("config-sha256", ZCP1State, config_sha256),
     DEFINE_PROP_UINT32("card-id", ZCP1State, card, 0),
     DEFINE_PROP_UINT32("session-timeout-ms", ZCP1State, timeout_ms, 30000),

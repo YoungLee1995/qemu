@@ -18,8 +18,31 @@
 #define P1_PING 14
 #define P1_PONG 15
 
+static void p1_interaction(ZCP1State *s, const char *event,
+                           unsigned type, uint64_t request, size_t bytes,
+                           const char *detail)
+{
+    FILE *log;
+
+    if (!s->interaction_log) {
+        return;
+    }
+    log = fopen(s->interaction_log, "a");
+    if (!log) {
+        warn_report("P1 interaction log %s: %s", s->interaction_log,
+                    strerror(errno));
+        return;
+    }
+    fprintf(log, "time_us=%" PRId64 " card=%u session=%" PRIu64
+            " epoch=%u event=%s type=%u request=%" PRIu64
+            " bytes=%zu detail=%s\n", g_get_real_time(), s->card, s->session,
+            s->epoch, event, type, request, bytes, detail ? detail : "");
+    fclose(log);
+}
+
 static void p1_session_fail(ZCP1State *s, const char *reason)
 {
+    p1_interaction(s, "failure", 0, s->request, 0, reason);
     if (s->session_fd >= 0) {
         close(s->session_fd);
         s->session_fd = -1;
@@ -73,6 +96,8 @@ static bool p1_session_send(ZCP1State *s, uint16_t type,
         return false;
     }
     s->pending_type = type;
+    p1_interaction(s, "send", type, s->request, size,
+                   with_fds ? "SCM_RIGHTS:3" : "");
     s->deadline = qemu_clock_get_ms(QEMU_CLOCK_REALTIME) + s->timeout_ms;
     return true;
 }
@@ -130,6 +155,7 @@ static void p1_session_connect(ZCP1State *s)
         return;
     }
     memcpy(addr.sun_path, s->backend_socket, strlen(s->backend_socket) + 1);
+    p1_interaction(s, "connect", 0, 0, 0, s->backend_socket);
     fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (fd < 0) {
         p1_session_fail(s, "socket creation");
@@ -215,6 +241,7 @@ static void p1_session_poll(ZCP1State *s)
     length = ldl_le_p(frame + 8);
     request = ldq_le_p(frame + 32);
     flags = ldl_le_p(frame + 40);
+    p1_interaction(s, "receive", type, request, length, "header not yet validated");
     if (ldl_le_p(frame) != 0x5a435030 || lduw_le_p(frame + 4) != 1 ||
         length > P1_MAX_PAYLOAD || n != P1_HEADER + length ||
         ldl_le_p(frame + 12) != s->card ||
