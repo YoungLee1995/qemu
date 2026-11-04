@@ -18,10 +18,10 @@ def main():
     ap.add_argument('--cards', type=int, choices=(1, 2, 8), default=1,
                     help='One single-die model process per card/instance')
     ap.add_argument('-d', '--debug', action='store_true',
-                    help='Interactive Spike debugger in this terminal (standalone, one card)')
+                    help='Spike debugger: current terminal in standalone; cli/debug.py in backend')
     args = ap.parse_args()
-    if args.debug and (args.mode != 'standalone' or args.cards != 1):
-        ap.error('-d requires --mode standalone --cards 1; backend interactive debugging is not supported')
+    if args.debug and args.mode == 'standalone' and args.cards != 1:
+        ap.error('standalone -d requires --cards 1')
     if args.mode == 'backend' and args.cores == 'npu':
         ap.error('QEMU backend currently supports --cores both or mcu; use standalone for npu-only')
     if args.cores == 'mcu' and args.npu_bin:
@@ -40,6 +40,8 @@ def main():
             for i in range(args.cards):
                 card = work / f'card{i}'
                 config = inputs(args, card)
+                if args.debug and args.mode == 'backend':
+                    config['debug_socket'] = str(Path(tmp) / f'debug{i}.sock')
                 path = card / 'backend.json'
                 save(path, config)
                 if args.mode == 'standalone':
@@ -55,9 +57,10 @@ def main():
                     command = [sys.executable, str(REPO / 'zc_simulator/tools/p1/service.py'),
                                '--socket', str(sock), '--config', str(path), '--work', str(card),
                                '--card', str(i)]
-                    cards.append(dict(socket=str(sock), config=str(path)))
+                    cards.append(dict(socket=str(sock), config=str(path),
+                                      **({'debug_socket': config['debug_socket']} if args.debug else {})))
                 save(card / 'command.json', command)
-                if args.debug:
+                if args.debug and args.mode == 'standalone':
                     print('Spike command: ' + shlex.join(command), flush=True)
                     print(f'Rerun: {card / "run-spike.sh"}', flush=True)
                     # Replace the launcher: the debugger owns this terminal,

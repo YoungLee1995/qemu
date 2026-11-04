@@ -17,6 +17,9 @@ import socket
 import struct
 import subprocess
 import time
+import sys
+
+from debug_terminal import DebugTerminal
 
 from protocol import (CAPS, CONTROL, ERROR, HELLO, HELLO_ACK, MAX_PAYLOAD,
                       MEM_READY, MEM_SETUP, PING, PONG, ProtocolError,
@@ -41,6 +44,7 @@ class Session:
         self.pending = None
         self.deadline = time.monotonic() + 5
         self.run_number = 0
+        self.debug_terminal = None
 
     def record(self, event, **values):
         names = {1: 'HELLO', 2: 'HELLO_ACK', 3: 'MEM_SETUP', 4: 'MEM_READY',
@@ -79,6 +83,9 @@ class Session:
             self.record('reaped', pid=self.proc.pid, exit_code=self.proc.returncode)
             self.proc = None
         self.alive(0)
+        if self.debug_terminal is not None:
+            self.debug_terminal.close()
+            self.debug_terminal = None
 
     def clear(self):
         # Called only after process reaping. Old writes cannot race new state.
@@ -123,18 +130,28 @@ class Session:
         seconds, nanos = divmod(time.time_ns(), 1_000_000_000)
         stamp = time.strftime('%Y-%m-%d_%H-%M-%S', time.gmtime(seconds))
         log_path = self.work / f'spike-{stamp}.{nanos:09d}Z-run{self.run_number}.log'
-        log = log_path.open('x')
+        log = log_path.open('xb')
         cmd = [self.config['spike'], f'--p1-ddr0-fd={self.fds[0]}',
                f'--p1-ddr1-fd={self.fds[1]}', '--isa='+self.config['isa'],
                '--runtime-func', self.config['firmware'], '-cfg', self.config['cfg']]
         try:
+            terminal = None
+            if self.config.get('debug_socket'):
+                cmd.insert(1, '-d')
+                terminal = DebugTerminal(self.config['debug_socket'], log)
+                self.debug_terminal = terminal
+                cmd = [sys.executable, str(Path(__file__).with_name('debug_terminal.py'))] + cmd
             self.proc = subprocess.Popen(cmd, cwd=self.config['cwd'], pass_fds=self.fds,
                 env=dict(os.environ, ZC_P1_MAILBOX_FD=str(self.fds[2]),
                          ZC_P1_PARENT_PID=str(os.getpid()),
                          ZC_P2_PCIE="1" if self.config.get("p2", False) else "0"),
-                stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                stdin=terminal.slave if terminal else None,
+                stdout=terminal.slave if terminal else log,
+                stderr=terminal.slave if terminal else subprocess.STDOUT,
+                start_new_session=not bool(terminal))
         finally:
-            log.close()
+            if not self.debug_terminal:
+                log.close()
         self.record('spawn', pid=self.proc.pid, log=log_path.name)
         self.state, self.pending = 'STARTING', request
         self.deadline = time.monotonic() + self.ready_timeout
@@ -187,6 +204,8 @@ class Session:
                 # QEMU pins the service identity. New payload pins are recorded
                 # separately and applied only after QUIESCE reaped old Spike.
                 updated['digest'] = self.config['digest']
+                if self.config.get('debug_socket'):
+                    updated['debug_socket'] = self.config['debug_socket']
                 self.config = updated
                 applied = self.work / 'applied-config.json'
                 staged = self.work / 'applied-config.tmp'

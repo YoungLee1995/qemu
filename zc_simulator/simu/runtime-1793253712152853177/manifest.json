@@ -4,7 +4,7 @@
   "created_utc": "2026-10-29T06:01:52Z",
   "files": {
     "bin/sm_system.cfg": "b03a21d1203d326af1fc418e0e40ae3c045106426beabf3b3b5256fd73dea17e",
-    "bin/spike": "d20a685c3ea7b510fad9c50c1c641fbdedda5525a94db9caae059ff672ab16a5",
+    "bin/spike": "be5144c299cd8604880db67f36399114df7f505f5f85521393f830fc567940d3",
     "fabric/fabric.py": "4d28007b6510d3bc712156d46ad0d0f5898a763a1ffe76de99737d6b868e7b52",
     "fabric/fabric_service.py": "9335e84540da8b3f8e8bd078ea40b796afd3b5d8529575e1f10c0efa678f52be",
     "fabric/gen4-eight.json": "60fccba220334c8364634ca6c00345d20514684dca989eb4dc6eb8ac0c7eeca9",

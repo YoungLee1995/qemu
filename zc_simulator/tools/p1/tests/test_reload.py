@@ -19,7 +19,9 @@ class ReloadTest(unittest.TestCase):
             image = work / 'mcu.bin'
             image.write_bytes(b'new image')
             replacement = {'sha256': {str(image): sha(image)}, 'cfg': 'new.cfg'}
-            session = Session(Mock(), {'digest': 'original identity'}, work, 0, 20, io.StringIO())
+            session = Session(Mock(), {'digest': 'original identity',
+                                      'debug_socket': str(work / 'debug.sock')},
+                              work, 0, 20, io.StringIO())
             session.session = 12
             session.state = 'QUIESCED'
             session.clear = Mock()
@@ -29,6 +31,7 @@ class ReloadTest(unittest.TestCase):
             session.handle((RESET, 0, 12, 1, 1, 0, b''), [])
             self.assertEqual(session.config['digest'], 'original identity')
             self.assertEqual(session.config['cfg'], 'new.cfg')
+            self.assertEqual(session.config['debug_socket'], str(work / 'debug.sock'))
             self.assertFalse(pending.exists())
             self.assertTrue((work / 'applied-config.json').is_file())
             session.reply.assert_called_once_with(RESET_ACK, 1)
