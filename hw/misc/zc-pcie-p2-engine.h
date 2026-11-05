@@ -510,6 +510,34 @@ static void p2_tick(ZCP1State *s)
     }
 }
 
+/* CPU BAR callbacks reach this path; peer DMA is handled by p3_transfer. */
+static void p2_inbound_log(ZCP1State *s, unsigned bar, uint64_t off,
+                           uint64_t bus_addr, int region, uint64_t target,
+                           uint32_t value, bool write, bool accepted)
+{
+    FILE *log;
+    if (!s->p2.trace || !s->interaction_log) {
+        return;
+    }
+    log = fopen(s->interaction_log, "a");
+    if (!log) {
+        warn_report("P2 inbound log %s: %s", s->interaction_log, strerror(errno));
+        return;
+    }
+    fprintf(log, "{\"event\":\"bar_inbound\",\"time_us\":%" PRId64
+            ",\"actor\":\"host_cpu_mmio\",\"card\":%u,\"session\":%" PRIu64
+            ",\"epoch\":%u,\"operation\":\"%s\",\"bar\":%u,"
+            "\"bar_offset\":\"0x%" PRIx64 "\",\"bus_addr\":\"0x%" PRIx64
+            "\",\"region\":%d,\"device_addr_valid\":%s,"
+            "\"device_addr\":\"0x%" PRIx64 "\",\"size\":4,"
+            "\"value\":\"0x%08x\",\"result\":\"%s\"}\n",
+            g_get_real_time(), s->card, s->session, s->epoch,
+            write ? "write" : "read", bar, off, bus_addr, region,
+            region >= 0 ? "true" : "false", target, value,
+            accepted ? "ok" : "rejected");
+    fclose(log);
+}
+
 /*
  * DWC unrolled +0x100 inbound bank, memory address/BAR match subset.
  * Lowest numbered matching region wins; invalid targets cannot fall through.
@@ -519,6 +547,8 @@ static bool p2_inbound(ZCP1State *s, unsigned bar, uint64_t off,
                        uint32_t *value, bool write)
 {
     uint64_t address = pci_get_bar_addr(&s->parent_obj, bar);
+    uint64_t logged_target = 0;
+    int logged_region = -1;
     if (address == PCI_BAR_UNMAPPED || off > UINT64_MAX - address) {
         goto reject;
     }
@@ -556,6 +586,8 @@ static bool p2_inbound(ZCP1State *s, unsigned bar, uint64_t off,
             goto reject;
         }
         target += delta;
+        logged_target = target;
+        logged_region = i;
         if (!p1_ready(s)) {
             goto reject;
         }
@@ -583,6 +615,8 @@ static bool p2_inbound(ZCP1State *s, unsigned bar, uint64_t off,
         } else {
             goto reject;
         }
+        p2_inbound_log(s, bar, off, address, logged_region, logged_target,
+                       *value, write, true);
         return true;
     }
 reject:
@@ -590,6 +624,8 @@ reject:
     if (!write) {
         *value = UINT32_MAX;
     }
+    p2_inbound_log(s, bar, off, address, logged_region, logged_target,
+                   *value, write, false);
     return true;
 }
 
