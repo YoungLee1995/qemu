@@ -512,6 +512,11 @@ static void p1_config_write(PCIDevice *pdev, uint32_t address,
     if (s->p5_flr) {
         pcie_cap_flr_write_config(pdev, address, val, len);
     }
+    if (s->ddr0 && address < PCI_BASE_ADDRESS_5 + 4) {
+        uint32_t reg = address & ~3u;
+        uint32_t dword = ldl_le_p(pdev->config + reg);
+        p1_store((uint32_t *)(s->ddr0 + 0x01000000 + reg), dword);
+    }
 }
 
 static const Property props[] = {
